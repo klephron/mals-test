@@ -1,0 +1,9 @@
+[submodule "third_party/humanevalpack"]
+	path = third_party/humanevalpack
+	url = https://huggingface.co/datasets/bigcode/humanevalpack.git
+[submodule "third_party/repobench-c"]
+	path = third_party/repobench-c
+	url = https://huggingface.co/datasets/tianyang/repobench-c
+[submodule "third_party/cceval"]
+	path = third_party/cceval
+	url = https://github.com/amazon-science/cceval.git

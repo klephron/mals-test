@@ -1,1 +1,5 @@
 *.log
+.venv/
+data/humanevalpack
+data/repobench-c
+data/cceval
