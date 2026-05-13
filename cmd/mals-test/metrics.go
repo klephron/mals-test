@@ -3,6 +3,8 @@ package main
 import (
 	"regexp"
 	"strings"
+
+	"github.com/agnivade/levenshtein"
 )
 
 var identifierRE = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
@@ -47,40 +49,12 @@ func identifiers(text string) []string {
 }
 
 func editSimilarity(a, b string) float64 {
-	ar := []rune(a)
-	br := []rune(b)
-	maxLen := max(len(br), len(ar))
+	maxLen := max(len([]rune(a)), len([]rune(b)))
 	if maxLen == 0 {
 		return 1
 	}
-	dist := levenshtein(ar, br)
+	dist := levenshtein.ComputeDistance(a, b)
 	return 1 - float64(dist)/float64(maxLen)
-}
-
-func levenshtein(a, b []rune) int {
-	if len(a) == 0 {
-		return len(b)
-	}
-	if len(b) == 0 {
-		return len(a)
-	}
-	prev := make([]int, len(b)+1)
-	curr := make([]int, len(b)+1)
-	for j := range prev {
-		prev[j] = j
-	}
-	for i := 1; i <= len(a); i++ {
-		curr[0] = i
-		for j := 1; j <= len(b); j++ {
-			cost := 0
-			if a[i-1] != b[j-1] {
-				cost = 1
-			}
-			curr[j] = minInt(curr[j-1]+1, prev[j]+1, prev[j-1]+cost)
-		}
-		prev, curr = curr, prev
-	}
-	return prev[len(b)]
 }
 
 func identifierF1(pred, ref []string) float64 {
@@ -126,14 +100,4 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-func minInt(values ...int) int {
-	best := values[0]
-	for _, value := range values[1:] {
-		if value < best {
-			best = value
-		}
-	}
-	return best
 }
