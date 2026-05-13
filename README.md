@@ -32,7 +32,7 @@ go run ./cmd/mals-test \
   --method textDocument/completion \
   --init-options ./config/lsp-ai.json \
   --timeout 5m \
-  --out results/lsp-ai/humanevalpack.projects/cpp-CPP_0.json
+  --out result/mals-test/lsp-ai/humanevalpack/cpp-CPP_0.json
 ```
 
 For `llm-ls`:
@@ -42,9 +42,45 @@ go run ./cmd/mals-test \
   data/humanevalpack.projects/python-Python_0 \
   --server llm-ls \
   --method llm-ls/getCompletions \
-  --out results/llm-ls-project-result.json
+  --out result/mals-test/llm-ls/humanevalpack/python-Python_0.json
 ```
 
 The runner executes one project against one LSP server and writes one JSON
 object. The JSON includes the completion text plus exact match, edit similarity,
 identifier exact match, and identifier F1.
+
+## Summarize completion metrics
+
+`scripts/evaluate_completions.py` reads the JSON result produced by
+`mals-test` and writes a smaller summary JSON. Keep the same directory structure
+under `result/completions/` as the raw `result/mals-test/` output so raw results
+and summaries are easy to compare.
+
+Example for the `lsp-ai` result above:
+
+```sh
+python scripts/evaluate_completions.py \
+  --input result/mals-test/lsp-ai/humanevalpack/cpp-CPP_0.json \
+  --output result/completions/lsp-ai/humanevalpack/cpp-CPP_0.json
+```
+
+Example for the `llm-ls` result above:
+
+```sh
+python scripts/evaluate_completions.py \
+  --input result/mals-test/llm-ls/humanevalpack.projects/python-Python_0.json \
+  --output result/completions/llm-ls/humanevalpack.projects/python-Python_0.json
+```
+
+The summary JSON contains grouped metrics, per-record metric rows, and a
+`skipped_without_metrics` counter. The full completion response remains in the
+original `result/mals-test/...` file.
+
+To merge many json files into single one to pass to `evaluate_completions.py`:
+
+```sh
+find result/mals-test/lsp-ai -name '*.json' -print0 \
+  | sort -z \
+  | xargs -0 jq -c '.' \
+  > result/mals-test/lsp-ai/all.jsonl
+```
