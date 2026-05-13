@@ -15,14 +15,6 @@ import (
 	"time"
 )
 
-type repeated []string
-
-func (r *repeated) String() string { return strings.Join(*r, ",") }
-func (r *repeated) Set(v string) error {
-	*r = append(*r, v)
-	return nil
-}
-
 type benchmarkCase struct {
 	ID          string         `json:"id"`
 	Dataset     string         `json:"dataset"`
@@ -96,19 +88,19 @@ func fileURI(path string) string {
 }
 
 func main() {
-	var servers repeated
-	var initOptions repeated
-	var requestOptions repeated
-	var methods repeated
+	var server string
+	var method string
+	var initOptions string
+	var requestOptions string
 	var outPath string
 	var timeout time.Duration
 	var includeRaw bool
 
-	flag.Var(&servers, "server", "server as name=command, for example --server lsp-ai=lsp-ai")
-	flag.Var(&methods, "method", "completion method as name=method, for example --method lsp-ai=textDocument/completion")
-	flag.Var(&initOptions, "init-options", "server init options as name=path/to/options.json")
-	flag.Var(&requestOptions, "request-options", "extra completion request fields as name=path/to/options.json")
-	flag.StringVar(&outPath, "out", "", "JSONL output path, defaults to stdout")
+	flag.StringVar(&server, "server", "", "server command, for example --server lsp-ai")
+	flag.StringVar(&method, "method", "", "completion method, for example --method textDocument/completion")
+	flag.StringVar(&initOptions, "init-options", "", "server init options JSON path")
+	flag.StringVar(&requestOptions, "request-options", "", "extra completion request fields JSON path")
+	flag.StringVar(&outPath, "out", "", "output path, defaults to stdout")
 	flag.DurationVar(&timeout, "timeout", 2*time.Minute, "timeout per LSP request")
 	flag.BoolVar(&includeRaw, "raw", false, "include raw completion response in output")
 
@@ -121,35 +113,38 @@ func main() {
 	project, err := projectLoad(projectDir)
 	must(err)
 
-	if len(servers) == 0 {
-		servers = repeated{"llm-ls=llm-ls", "lsp-ai=lsp-ai"}
+	if server == "" {
+		must(errors.New("--server is required, for example --server lsp-ai"))
 	}
 
-	serverSpecs, err := configParseServers(servers)
+	serverSpec, err := configParseServer(server)
 	must(err)
-	applyNamedValues(methods, serverSpecs, func(spec *serverSpec, value string) {
-		spec.Method = value
-	})
-	must(configLoadNamedJSON(initOptions, func(name string, obj map[string]any) {
-		applyToServer(serverSpecs, name, func(spec *serverSpec) { spec.InitOptions = obj })
-	}))
-	must(configLoadNamedJSON(requestOptions, func(name string, obj map[string]any) {
-		applyToServer(serverSpecs, name, func(spec *serverSpec) { spec.RequestOptions = obj })
-	}))
+	if method != "" {
+		serverSpec.Method = method
+	}
+	if serverSpec.Method == "" {
+		serverSpec.Method = configDefaultCompletionMethod(serverSpec.Name)
+	}
+	serverSpec.InitOptions = configLoadJSONFile(initOptions)
+	serverSpec.RequestOptions = configLoadJSONFile(requestOptions)
 
 	writer, closeOut := outputWriter(outPath)
 	if closeOut != nil {
 		defer closeOut()
 	}
-	enc := json.NewEncoder(writer)
 
-	for _, spec := range serverSpecs {
-		if spec.Method == "" {
-			spec.Method = configDefaultCompletionMethod(spec.Name)
+	record, err := runnerRunServer(context.Background(), serverSpec, projectDir, project, timeout, includeRaw)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "server %s failed: %v\n", serverSpec.Name, err)
+		if record.Server == "" {
+			os.Exit(1)
 		}
-		if err := runnerRunServer(context.Background(), spec, projectDir, project, timeout, includeRaw, enc); err != nil {
-			fmt.Fprintf(os.Stderr, "server %s failed: %v\n", spec.Name, err)
-		}
+	}
+	enc := json.NewEncoder(writer)
+	enc.SetIndent("", "  ")
+	must(enc.Encode(record))
+	if err != nil {
+		os.Exit(1)
 	}
 }
 
@@ -174,18 +169,4 @@ func outputWriter(outPath string) (io.Writer, func()) {
 	out, err := os.Create(outPath)
 	must(err)
 	return out, func() { _ = out.Close() }
-}
-
-func applyNamedValues(values []string, specs []serverSpec, set func(*serverSpec, string)) {
-	must(configLoadNamedValues(values, func(name, value string) {
-		applyToServer(specs, name, func(spec *serverSpec) { set(spec, value) })
-	}))
-}
-
-func applyToServer(specs []serverSpec, name string, apply func(*serverSpec)) {
-	for i := range specs {
-		if specs[i].Name == name {
-			apply(&specs[i])
-		}
-	}
 }

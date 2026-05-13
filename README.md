@@ -26,22 +26,25 @@ The Go runner expects a normalized project directory as its first argument. The
 directory must contain `completion.json` and `root/`.
 
 ```sh
-GOCACHE=/tmp/mals-test-go-build go run ./cmd/lspbench \
-  data/cceval.projects/csharp-line_completion_oracle_bm25-project_cc_csharp_1 \
-  --server lsp-ai=lsp-ai \
-  --method lsp-ai=textDocument/completion \
-  --out results/project-result.jsonl
+go run ./cmd/mals-test \
+  ./data/humanevalpack.projects/cpp-CPP_0 \
+  --server lsp-ai \
+  --method textDocument/completion \
+  --init-options ./config/lsp-ai.json \
+  --timeout 5m \
+  --out results/lsp-ai/humanevalpack.projects/cpp-CPP_0.json
 ```
 
 For `llm-ls`:
 
 ```sh
-GOCACHE=/tmp/mals-test-go-build go run ./cmd/lspbench \
+go run ./cmd/mals-test \
   data/humanevalpack.projects/python-Python_0 \
-  --server llm-ls=llm-ls \
-  --method llm-ls=llm-ls/getCompletions \
-  --out results/llm-ls-project-result.jsonl
+  --server llm-ls \
+  --method llm-ls/getCompletions \
+  --out results/llm-ls-project-result.json
 ```
 
-Each output row includes the completion text plus exact match, edit similarity,
+The runner executes one project against one LSP server and writes one JSON
+object. The JSON includes the completion text plus exact match, edit similarity,
 identifier exact match, and identifier F1.

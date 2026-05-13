@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -10,33 +9,30 @@ import (
 	"time"
 )
 
-func runnerRunServer(ctx context.Context, spec serverSpec, projectDir string, tc benchmarkCase, timeout time.Duration, includeRaw bool, enc *json.Encoder) error {
+func runnerRunServer(ctx context.Context, spec serverSpec, projectDir string, tc benchmarkCase, timeout time.Duration, includeRaw bool) (resultRecord, error) {
 	client, err := lspStartClient(ctx, spec.Command)
 	if err != nil {
-		return err
+		return resultRecord{}, err
 	}
 	defer client.close()
 
 	root, err := filepath.Abs(filepath.Join(projectDir, tc.RootDir))
 	if err != nil {
-		return err
+		return resultRecord{}, err
 	}
 
 	if err := runnerInitialize(ctx, client, spec, root, timeout); err != nil {
-		return err
+		return resultRecord{}, err
 	}
 
 	rec := runnerCompletion(ctx, client, spec, root, tc, timeout, includeRaw)
-	if err := enc.Encode(rec); err != nil {
-		return err
-	}
 
 	_, err = client.request(ctx, "shutdown", nil, timeout)
 	if err != nil {
-		return fmt.Errorf("shutdown: %w", err)
+		return rec, fmt.Errorf("shutdown: %w", err)
 	}
 	_ = client.notify("exit", nil)
-	return nil
+	return rec, nil
 }
 
 func runnerInitialize(ctx context.Context, client *lspClient, spec serverSpec, root string, timeout time.Duration) error {

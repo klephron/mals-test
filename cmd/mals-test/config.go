@@ -9,50 +9,27 @@ import (
 	"github.com/google/shlex"
 )
 
-func configParseServers(values []string) ([]serverSpec, error) {
-	var specs []serverSpec
-	for _, value := range values {
-		name, cmd, ok := strings.Cut(value, "=")
-		if !ok || strings.TrimSpace(name) == "" || strings.TrimSpace(cmd) == "" {
-			return nil, fmt.Errorf("invalid --server %q, expected name=command", value)
-		}
-		parts, err := configSplitCommand(cmd)
-		if err != nil {
-			return nil, err
-		}
-		specs = append(specs, serverSpec{Name: name, Command: parts})
+func configParseServer(value string) (serverSpec, error) {
+	if strings.TrimSpace(value) == "" {
+		return serverSpec{}, fmt.Errorf("empty --server command")
 	}
-	return specs, nil
+	parts, err := configSplitCommand(value)
+	if err != nil {
+		return serverSpec{}, err
+	}
+	name := parts[0]
+	return serverSpec{Name: name, Command: parts}, nil
 }
 
-func configLoadNamedValues(values []string, set func(string, string)) error {
-	for _, value := range values {
-		name, raw, ok := strings.Cut(value, "=")
-		if !ok || strings.TrimSpace(name) == "" || strings.TrimSpace(raw) == "" {
-			return fmt.Errorf("invalid named value %q, expected name=value", value)
-		}
-		set(name, raw)
+func configLoadJSONFile(path string) map[string]any {
+	if path == "" {
+		return nil
 	}
-	return nil
-}
-
-func configLoadNamedJSON(values []string, set func(string, map[string]any)) error {
-	for _, value := range values {
-		name, path, ok := strings.Cut(value, "=")
-		if !ok {
-			return fmt.Errorf("invalid named JSON %q, expected name=path", value)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		var obj map[string]any
-		if err := json.Unmarshal(data, &obj); err != nil {
-			return err
-		}
-		set(name, obj)
-	}
-	return nil
+	data, err := os.ReadFile(path)
+	must(err)
+	var obj map[string]any
+	must(json.Unmarshal(data, &obj))
+	return obj
 }
 
 func configSplitCommand(command string) ([]string, error) {

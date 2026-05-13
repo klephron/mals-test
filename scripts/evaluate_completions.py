@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize JSONL results produced by the Go LSP benchmark runner."""
+"""Summarize JSON or JSONL results produced by the Go LSP benchmark runner."""
 
 from __future__ import annotations
 
@@ -88,7 +88,17 @@ def summarize(records: list[dict[str, Any]], group_by: list[str], include_errors
     }
 
 
-def load_jsonl(path: Path) -> list[dict[str, Any]]:
+def load_results(path: Path) -> list[dict[str, Any]]:
+    if path.suffix == ".json":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and "records" in data:
+            return data["records"]
+        if isinstance(data, dict):
+            return [data]
+        raise ValueError(f"{path}: expected JSON object or array")
+
     records = []
     with path.open(encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
@@ -102,14 +112,14 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", "-i", default="results/completions.jsonl")
+    parser.add_argument("--input", "-i", default="results/completions.json")
     parser.add_argument("--output", "-o", default="results/metrics.json")
     parser.add_argument("--group-by", default="server,dataset,language")
     parser.add_argument("--include-errors", action="store_true")
     args = parser.parse_args()
 
     group_by = [part.strip() for part in args.group_by.split(",") if part.strip()]
-    records = load_jsonl(Path(args.input))
+    records = load_results(Path(args.input))
     output = summarize(records, group_by, args.include_errors)
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)

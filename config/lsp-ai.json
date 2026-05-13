@@ -1,0 +1,26 @@
+{
+  "memory": {
+    "file_store": {}
+  },
+  "models": {
+    "model1": {
+      "type": "open_ai",
+      "chat_endpoint": "http://localhost:9652/v1/chat/completions",
+      "model": "local-model",
+      "auth_token": ""
+    }
+  },
+  "completion": {
+    "model": "model1",
+    "parameters": {
+      "max_context": 3000,
+      "max_tokens": 128,
+      "messages": [
+        {
+          "role": "user",
+          "content": "{CODE}"
+        }
+      ]
+    }
+  }
+}
