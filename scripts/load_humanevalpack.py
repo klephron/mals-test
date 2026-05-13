@@ -1,14 +1,14 @@
 from pathlib import Path
 from datasets import load_dataset
 
-dataset = "bigcode/humanevalpack"
-configs = ["python", "js", "java", "go", "cpp", "rust"]
-out = "data/humanevalpack"
+DATASET = "bigcode/humanevalpack"
+CONFIGS = ["python", "js", "java", "go", "cpp", "rust"]
+OUT = "data/humanevalpack"
 
-out = Path(out)
-out.mkdir(parents=True, exist_ok=True)
+OUT = Path(OUT)
+OUT.mkdir(parents=True, exist_ok=True)
 
-for lang in configs:
-    ds = load_dataset(dataset, lang)
+for lang in CONFIGS:
+    ds = load_dataset(DATASET, lang)
     for split_name, split in ds.items():
-        split.to_json(out / f"{lang}-{split_name}.json")
+        split.to_json(OUT / f"{lang}-{split_name}.json")

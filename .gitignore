@@ -1,5 +1,9 @@
 *.log
 .venv/
-data/humanevalpack
-data/repobench-c
-data/cceval
+__pycache__/
+results/
+.lspbench-work/
+data/*.projects
+data/humanevalpack*
+data/repobench-c*
+data/cceval*

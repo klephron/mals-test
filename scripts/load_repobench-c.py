@@ -1,14 +1,14 @@
 from pathlib import Path
 from datasets import load_dataset
 
-dataset = "tianyang/repobench-c"
-configs = ['java_cff', 'java_cfr', 'java_if', 'python_cff', 'python_cfr', 'python_if']
-out = "data/repobench-c"
+DATASET = "tianyang/repobench-c"
+CONFIGS = ['java_cff', 'java_cfr', 'java_if', 'python_cff', 'python_cfr', 'python_if']
+OUT = "data/repobench-c"
 
-out = Path(out)
-out.mkdir(parents=True, exist_ok=True)
+OUT = Path(OUT)
+OUT.mkdir(parents=True, exist_ok=True)
 
-for lang in configs:
-    ds = load_dataset(dataset, lang)
+for lang in CONFIGS:
+    ds = load_dataset(DATASET, lang)
     for split_name, split in ds.items():
-        split.to_json(out / f"{lang}-{split_name}.json")
+        split.to_json(OUT / f"{lang}-{split_name}.json")
