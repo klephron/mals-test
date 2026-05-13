@@ -125,16 +125,16 @@ func main() {
 		servers = repeated{"llm-ls=llm-ls", "lsp-ai=lsp-ai"}
 	}
 
-	specs, err := configParseServers(servers)
+	serverSpecs, err := configParseServers(servers)
 	must(err)
-	applyNamedValues(methods, specs, func(spec *serverSpec, value string) {
+	applyNamedValues(methods, serverSpecs, func(spec *serverSpec, value string) {
 		spec.Method = value
 	})
 	must(configLoadNamedJSON(initOptions, func(name string, obj map[string]any) {
-		applyToServer(specs, name, func(spec *serverSpec) { spec.InitOptions = obj })
+		applyToServer(serverSpecs, name, func(spec *serverSpec) { spec.InitOptions = obj })
 	}))
 	must(configLoadNamedJSON(requestOptions, func(name string, obj map[string]any) {
-		applyToServer(specs, name, func(spec *serverSpec) { spec.RequestOptions = obj })
+		applyToServer(serverSpecs, name, func(spec *serverSpec) { spec.RequestOptions = obj })
 	}))
 
 	writer, closeOut := outputWriter(outPath)
@@ -143,7 +143,7 @@ func main() {
 	}
 	enc := json.NewEncoder(writer)
 
-	for _, spec := range specs {
+	for _, spec := range serverSpecs {
 		if spec.Method == "" {
 			spec.Method = configDefaultCompletionMethod(spec.Name)
 		}

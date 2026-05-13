@@ -2,10 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/google/shlex"
 )
 
 func configParseServers(values []string) ([]serverSpec, error) {
@@ -55,45 +56,12 @@ func configLoadNamedJSON(values []string, set func(string, map[string]any)) erro
 }
 
 func configSplitCommand(command string) ([]string, error) {
-	var parts []string
-	var b strings.Builder
-	var quote rune
-	escaped := false
-	for _, r := range command {
-		switch {
-		case escaped:
-			b.WriteRune(r)
-			escaped = false
-		case r == '\\':
-			escaped = true
-		case quote != 0:
-			if r == quote {
-				quote = 0
-			} else {
-				b.WriteRune(r)
-			}
-		case r == '\'' || r == '"':
-			quote = r
-		case r == ' ' || r == '\t' || r == '\n':
-			if b.Len() > 0 {
-				parts = append(parts, b.String())
-				b.Reset()
-			}
-		default:
-			b.WriteRune(r)
-		}
-	}
-	if escaped {
-		b.WriteRune('\\')
-	}
-	if quote != 0 {
-		return nil, errors.New("unterminated quote in command")
-	}
-	if b.Len() > 0 {
-		parts = append(parts, b.String())
+	parts, err := shlex.Split(command)
+	if err != nil {
+		return nil, err
 	}
 	if len(parts) == 0 {
-		return nil, errors.New("empty command")
+		return nil, fmt.Errorf("empty command")
 	}
 	return parts, nil
 }
