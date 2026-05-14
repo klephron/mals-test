@@ -42,33 +42,34 @@ func projectLoad(projectDir string) (testCase, error) {
 func projectFiles(root string, tc testCase) []string {
 	seen := map[string]bool{}
 	var files []string
-	add := func(rel string) {
-		if rel == "" {
+
+	add := func(relPath string) {
+		path, ok := projectFilePath(root, relPath)
+		if !ok {
 			return
 		}
-		abs := filepath.Join(root, filepath.FromSlash(rel))
-		cleanRoot := filepath.Clean(root) + string(os.PathSeparator)
-		cleanAbs := filepath.Clean(abs)
-		if cleanAbs != filepath.Clean(root) && !strings.HasPrefix(cleanAbs, cleanRoot) {
-			return
-		}
-		if !seen[cleanAbs] {
-			seen[cleanAbs] = true
-			files = append(files, cleanAbs)
+		if !seen[path] {
+			seen[path] = true
+			files = append(files, path)
 		}
 	}
-	for _, rel := range tc.Files {
-		add(rel)
+
+	for _, relPath := range tc.Files {
+		add(relPath)
 	}
 	add(tc.SourceFile)
-	if len(files) == 0 {
-		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err == nil && !d.IsDir() {
-				files = append(files, path)
-			}
-			return nil
-		})
-	}
+
 	sort.Strings(files)
 	return files
+}
+
+func projectFilePath(root string, relPath string) (string, bool) {
+	if relPath == "" {
+		return "", false
+	}
+	cleanRel := filepath.Clean(filepath.FromSlash(relPath))
+	if filepath.IsAbs(cleanRel) || cleanRel == "." || cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(os.PathSeparator)) {
+		return "", false
+	}
+	return filepath.Join(root, cleanRel), true
 }
