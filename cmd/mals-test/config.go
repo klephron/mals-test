@@ -17,8 +17,7 @@ func configParseServer(value string) (serverSpec, error) {
 	if err != nil {
 		return serverSpec{}, err
 	}
-	name := parts[0]
-	return serverSpec{Name: name, Command: parts}, nil
+	return serverSpec{Command: parts}, nil
 }
 
 func configLoadJSONFile(path string) map[string]any {
@@ -41,11 +40,4 @@ func configSplitCommand(command string) ([]string, error) {
 		return nil, fmt.Errorf("empty command")
 	}
 	return parts, nil
-}
-
-func configDefaultCompletionMethod(name string) string {
-	if name == "llm-ls" || strings.Contains(name, "llm") {
-		return "llm-ls/getCompletions"
-	}
-	return "textDocument/completion"
 }

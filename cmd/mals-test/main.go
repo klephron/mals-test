@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -39,23 +38,13 @@ type resultRecord struct {
 	Case        benchmarkCase `json:"case"`
 	Server      string        `json:"server"`
 	Method      string        `json:"method"`
-	Completion  string        `json:"completion"`
 	Completions []string      `json:"completions,omitempty"`
-	Metrics     metrics       `json:"metrics"`
 	Error       string        `json:"error,omitempty"`
 	DurationMS  int64         `json:"duration_ms"`
 	RawResult   any           `json:"raw_result,omitempty"`
 }
 
-type metrics struct {
-	ExactMatch           float64 `json:"exact_match"`
-	EditSimilarity       float64 `json:"edit_similarity"`
-	IdentifierExactMatch float64 `json:"identifier_exact_match"`
-	IdentifierF1         float64 `json:"identifier_f1"`
-}
-
 type serverSpec struct {
-	Name           string
 	Command        []string
 	Method         string
 	InitOptions    map[string]any
@@ -119,12 +108,10 @@ func main() {
 
 	serverSpec, err := configParseServer(server)
 	must(err)
-	if method != "" {
-		serverSpec.Method = method
+	if method == "" {
+		must(errors.New("--method is required, for example --method textDocument/completion"))
 	}
-	if serverSpec.Method == "" {
-		serverSpec.Method = configDefaultCompletionMethod(serverSpec.Name)
-	}
+	serverSpec.Method = method
 	serverSpec.InitOptions = configLoadJSONFile(initOptions)
 	serverSpec.RequestOptions = configLoadJSONFile(requestOptions)
 
@@ -135,10 +122,8 @@ func main() {
 
 	record, err := runnerRunServer(context.Background(), serverSpec, projectDir, project, timeout, includeRaw)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "server %s failed: %v\n", serverSpec.Name, err)
-		if record.Server == "" {
-			os.Exit(1)
-		}
+		fmt.Fprintf(os.Stderr, "server %s failed: %v\n", runnerServerLabel(serverSpec), err)
+		os.Exit(1)
 	}
 	enc := json.NewEncoder(writer)
 	enc.SetIndent("", "  ")
@@ -149,11 +134,6 @@ func main() {
 }
 
 func parseProjectArg() string {
-	args := os.Args[1:]
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		must(flag.CommandLine.Parse(args[1:]))
-		return args[0]
-	}
 	flag.Parse()
 	if flag.NArg() == 1 {
 		return flag.Arg(0)

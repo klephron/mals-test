@@ -69,7 +69,7 @@ func runnerInitialize(ctx context.Context, client *lspClient, spec serverSpec, r
 
 func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, root string, tc benchmarkCase, timeout time.Duration, includeRaw bool) resultRecord {
 	start := time.Now()
-	rec := resultRecord{Case: tc, Server: spec.Name, Method: spec.Method}
+	rec := resultRecord{Case: tc, Server: runnerServerLabel(spec), Method: spec.Method}
 	targetAbs := filepath.Join(root, filepath.FromSlash(tc.SourceFile))
 	targetURI := fileURI(targetAbs)
 	pos := map[string]int{"line": tc.Cursor.Line, "character": tc.Cursor.Character}
@@ -101,12 +101,7 @@ func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, r
 		if reqErr != nil {
 			rec.Error = reqErr.Error()
 		} else {
-			completions := completionExtract(raw)
-			rec.Completions = completions
-			if len(completions) > 0 {
-				rec.Completion = completions[0]
-			}
-			rec.Metrics = scoreCompletion(rec.Completion, tc.GroundTruth)
+			rec.Completions = completionExtract(raw)
 			if includeRaw {
 				rec.RawResult = raw
 			}
@@ -133,4 +128,11 @@ func runnerGetCompletionParams(spec serverSpec, tc benchmarkCase, uri string, po
 	}
 	maps.Copy(params, spec.RequestOptions)
 	return params
+}
+
+func runnerServerLabel(spec serverSpec) string {
+	if len(spec.Command) == 0 {
+		return ""
+	}
+	return spec.Command[0]
 }
