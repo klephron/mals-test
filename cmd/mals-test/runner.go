@@ -9,20 +9,20 @@ import (
 	"time"
 )
 
-func runnerRunServer(ctx context.Context, spec serverSpec, projectDir string, tc benchmarkCase, timeout time.Duration, includeRaw bool) (resultRecord, error) {
+func runnerRunServer(ctx context.Context, spec serverSpec, projectDir string, tc testCase, timeout time.Duration, includeRaw bool) (testResult, error) {
 	client, err := lspStartClient(ctx, spec.Command)
 	if err != nil {
-		return resultRecord{}, err
+		return testResult{}, err
 	}
 	defer client.close()
 
 	root, err := filepath.Abs(filepath.Join(projectDir, tc.RootDir))
 	if err != nil {
-		return resultRecord{}, err
+		return testResult{}, err
 	}
 
 	if err := runnerInitialize(ctx, client, spec, root, timeout); err != nil {
-		return resultRecord{}, err
+		return testResult{}, err
 	}
 
 	rec := runnerCompletion(ctx, client, spec, root, tc, timeout, includeRaw)
@@ -67,9 +67,9 @@ func runnerInitialize(ctx context.Context, client *lspClient, spec serverSpec, r
 	return nil
 }
 
-func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, root string, tc benchmarkCase, timeout time.Duration, includeRaw bool) resultRecord {
+func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, root string, tc testCase, timeout time.Duration, includeRaw bool) testResult {
 	start := time.Now()
-	rec := resultRecord{Case: tc, Server: runnerServerLabel(spec), Method: spec.Method}
+	rec := testResult{Case: tc, Server: runnerServerLabel(spec), Method: spec.Method}
 	targetAbs := filepath.Join(root, filepath.FromSlash(tc.SourceFile))
 	targetURI := fileURI(targetAbs)
 	pos := map[string]int{"line": tc.Cursor.Line, "character": tc.Cursor.Character}
@@ -111,7 +111,7 @@ func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, r
 	return rec
 }
 
-func runnerGetCompletionParams(spec serverSpec, tc benchmarkCase, uri string, pos map[string]int, abs string) map[string]any {
+func runnerGetCompletionParams(spec serverSpec, tc testCase, uri string, pos map[string]int, abs string) map[string]any {
 	params := map[string]any{
 		"textDocument": map[string]any{"uri": uri},
 		"position":     pos,

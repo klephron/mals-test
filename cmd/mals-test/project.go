@@ -10,36 +10,36 @@ import (
 	"strings"
 )
 
-func projectLoad(projectDir string) (benchmarkCase, error) {
+func projectLoad(projectDir string) (testCase, error) {
 	data, err := os.ReadFile(filepath.Join(projectDir, "completion.json"))
 	if err != nil {
-		return benchmarkCase{}, err
+		return testCase{}, err
 	}
-	var tc benchmarkCase
+	var tc testCase
 	if err := json.Unmarshal(data, &tc); err != nil {
-		return benchmarkCase{}, err
+		return testCase{}, err
 	}
 	if tc.RootDir == "" {
 		tc.RootDir = "root"
 	}
 	if tc.SourceFile == "" {
-		return benchmarkCase{}, errors.New("completion.json is missing source_file")
+		return testCase{}, errors.New("completion.json is missing source_file")
 	}
 	if tc.Language == "" {
-		return benchmarkCase{}, errors.New("completion.json is missing language")
+		return testCase{}, errors.New("completion.json is missing language")
 	}
 	root := filepath.Join(projectDir, tc.RootDir)
 	if _, err := os.Stat(root); err != nil {
-		return benchmarkCase{}, fmt.Errorf("project root %s: %w", root, err)
+		return testCase{}, fmt.Errorf("project root %s: %w", root, err)
 	}
 	target := filepath.Join(root, filepath.FromSlash(tc.SourceFile))
 	if _, err := os.Stat(target); err != nil {
-		return benchmarkCase{}, fmt.Errorf("source file %s: %w", target, err)
+		return testCase{}, fmt.Errorf("source file %s: %w", target, err)
 	}
 	return tc, nil
 }
 
-func projectFiles(root string, tc benchmarkCase) []string {
+func projectFiles(root string, tc testCase) []string {
 	seen := map[string]bool{}
 	var files []string
 	add := func(rel string) {

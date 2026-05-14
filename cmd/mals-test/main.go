@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type benchmarkCase struct {
+type testCase struct {
 	ID          string         `json:"id"`
 	Dataset     string         `json:"dataset"`
 	Language    string         `json:"language"`
@@ -34,14 +34,14 @@ type cursorPosition struct {
 	Offset    int `json:"offset,omitempty"`
 }
 
-type resultRecord struct {
-	Case        benchmarkCase `json:"case"`
-	Server      string        `json:"server"`
-	Method      string        `json:"method"`
-	Completions []string      `json:"completions,omitempty"`
-	Error       string        `json:"error,omitempty"`
-	DurationMS  int64         `json:"duration_ms"`
-	RawResult   any           `json:"raw_result,omitempty"`
+type testResult struct {
+	Case        testCase `json:"case"`
+	Server      string   `json:"server"`
+	Method      string   `json:"method"`
+	Completions []string `json:"completions,omitempty"`
+	Error       string   `json:"error,omitempty"`
+	DurationMS  int64    `json:"duration_ms"`
+	RawResult   any      `json:"raw_result,omitempty"`
 }
 
 type serverSpec struct {
