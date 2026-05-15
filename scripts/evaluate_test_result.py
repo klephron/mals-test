@@ -80,8 +80,30 @@ KEYWORDS = {
 
 
 @dataclass(frozen=True)
-class CompletionResult:
-    case: dict[str, Any]
+class CursorPosition:
+    line: int
+    character: int
+    offset: int = 0
+
+
+@dataclass(frozen=True)
+class TestCase:
+    id: str
+    dataset: str
+    language: str
+    root_dir: str
+    source_file: str
+    cursor: CursorPosition
+    prefix: str
+    ground_truth: str
+    suffix: str = ""
+    files: list[str] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class TestResult:
+    case: TestCase
     server: str
     method: str
     completions: list[str]
@@ -99,28 +121,44 @@ class MetricScores:
 
 
 @dataclass(frozen=True)
-class EvaluatedCompletion:
-    case: dict[str, Any]
+class EvaluationResult:
+    case: TestCase
     server: str
     method: str
-    completion: str
     completions: list[str]
     metrics: MetricScores | None
     error: str = ""
     duration_ms: int = 0
 
 
-@dataclass(frozen=True)
-class EvaluationResult:
-    records: list[EvaluatedCompletion]
-    skipped_errors: int = 0
-    skipped_without_ground_truth: int = 0
+def cursor_position_from_dict(data: dict[str, Any]) -> CursorPosition:
+    return CursorPosition(
+        line=int(data.get("line") or 0),
+        character=int(data.get("character") or 0),
+        offset=int(data.get("offset") or 0),
+    )
 
 
-def completion_result_from_dict(data: dict[str, Any]) -> CompletionResult:
+def test_case_from_dict(data: dict[str, Any]) -> TestCase:
+    return TestCase(
+        id=str(data.get("id") or ""),
+        dataset=str(data.get("dataset") or ""),
+        language=str(data.get("language") or ""),
+        root_dir=str(data.get("root_dir") or ""),
+        source_file=str(data.get("source_file") or ""),
+        cursor=cursor_position_from_dict(data.get("cursor") or {}),
+        prefix=str(data.get("prefix") or ""),
+        suffix=str(data.get("suffix") or ""),
+        ground_truth=str(data.get("ground_truth") or ""),
+        files=[str(item) for item in data.get("files") or []],
+        metadata=data.get("metadata") if isinstance(data.get("metadata"), dict) else None,
+    )
+
+
+def test_result_from_dict(data: dict[str, Any]) -> TestResult:
     completions = data.get("completions") or []
-    return CompletionResult(
-        case=data.get("case") or {},
+    return TestResult(
+        case=test_case_from_dict(data.get("case") or {}),
         server=str(data.get("server") or ""),
         method=str(data.get("method") or ""),
         completions=[str(item) for item in completions],
@@ -130,13 +168,12 @@ def completion_result_from_dict(data: dict[str, Any]) -> CompletionResult:
     )
 
 
-def evaluated_completion_from_dict(data: dict[str, Any]) -> EvaluatedCompletion:
+def evaluation_result_from_dict(data: dict[str, Any]) -> EvaluationResult:
     metrics = data.get("metrics")
-    return EvaluatedCompletion(
-        case=data.get("case") or {},
+    return EvaluationResult(
+        case=test_case_from_dict(data.get("case") or {}),
         server=str(data.get("server") or ""),
         method=str(data.get("method") or ""),
-        completion=str(data.get("completion") or ""),
         completions=[str(item) for item in data.get("completions") or []],
         metrics=MetricScores(**metrics) if isinstance(metrics, dict) else None,
         error=str(data.get("error") or ""),
@@ -216,77 +253,30 @@ def calculate_metrics(completion: str, ground_truth: str) -> MetricScores:
     )
 
 
-def evaluate_completion(record: CompletionResult) -> EvaluatedCompletion | None:
-    if "ground_truth" not in record.case:
-        return None
+def evaluate_test_result(
+    record: TestResult,
+    include_errors: bool = False,
+) -> EvaluationResult:
     completion = record.completions[0] if record.completions else ""
-    return EvaluatedCompletion(
+    metrics = None
+    if record.case.ground_truth and (include_errors or not record.error):
+        metrics = calculate_metrics(completion, record.case.ground_truth)
+    return EvaluationResult(
         case=record.case,
         server=record.server,
         method=record.method,
-        completion=completion,
         completions=record.completions,
-        metrics=calculate_metrics(completion, str(record.case.get("ground_truth") or "")),
+        metrics=metrics,
         error=record.error,
         duration_ms=record.duration_ms,
     )
 
 
-def evaluate_completions(
-    records: list[CompletionResult],
-    include_errors: bool = False,
-) -> EvaluationResult:
-    evaluated: list[EvaluatedCompletion] = []
-    skipped_errors = 0
-    skipped_without_ground_truth = 0
-
-    for record in records:
-        if record.error and not include_errors:
-            skipped_errors += 1
-            continue
-        item = evaluate_completion(record)
-        if item is None:
-            skipped_without_ground_truth += 1
-            continue
-        evaluated.append(item)
-
-    return EvaluationResult(
-        records=evaluated,
-        skipped_errors=skipped_errors,
-        skipped_without_ground_truth=skipped_without_ground_truth,
-    )
-
-
-def load_json_records(path: Path) -> list[dict[str, Any]]:
-    if path.is_dir():
-        records: list[dict[str, Any]] = []
-        for item in sorted(path.rglob("*.json")):
-            records.extend(load_json_records(item))
-        return records
-
-    if path.suffix == ".json":
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict) and "records" in data:
-            return data["records"]
-        if isinstance(data, dict):
-            return [data]
-        raise ValueError(f"{path}: expected JSON object or array")
-
-    records = []
-    with path.open(encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            if line.strip():
-                try:
-                    records.append(json.loads(line))
-                except json.JSONDecodeError as exc:
-                    raise ValueError(f"{path}:{line_number}: invalid JSON: {exc}") from exc
-    return records
-
-
-def read_completion_results(path: str | Path) -> list[CompletionResult]:
-    return [completion_result_from_dict(item) for item in load_json_records(Path(path))]
+def read_test_result(path: str | Path) -> TestResult:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected one JSON object")
+    return test_result_from_dict(data)
 
 
 def write_evaluation_result(result: EvaluationResult, path: str | Path) -> None:
@@ -300,36 +290,38 @@ def write_evaluation_result(result: EvaluationResult, path: str | Path) -> None:
 
 def read_evaluation_result(path: str | Path) -> EvaluationResult:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    records = [evaluated_completion_from_dict(item) for item in data.get("records", [])]
-    return EvaluationResult(
-        records=records,
-        skipped_errors=int(data.get("skipped_errors") or 0),
-        skipped_without_ground_truth=int(data.get("skipped_without_ground_truth") or 0),
-    )
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected one JSON object")
+    return evaluation_result_from_dict(data)
 
 
-def evaluate_completion_files(
+def read_evaluation_results(paths: list[str | Path]) -> list[EvaluationResult]:
+    records: list[EvaluationResult] = []
+    for path in paths:
+        records.append(read_evaluation_result(Path(path)))
+    return records
+
+
+def evaluate_test_result_file(
     input_path: str | Path,
     include_errors: bool = False,
 ) -> EvaluationResult:
-    return evaluate_completions(read_completion_results(input_path), include_errors)
+    return evaluate_test_result(read_test_result(input_path), include_errors)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", "-i", default="results/completions.json")
-    parser.add_argument("--output", "-o", default="results/evaluated_completions.json")
+    parser.add_argument("--input", "-i", default="result/completions.json")
+    parser.add_argument("--output", "-o", default="result/evaluated_completions.json")
     parser.add_argument("--include-errors", action="store_true")
     args = parser.parse_args()
 
-    result = evaluate_completion_files(args.input, args.include_errors)
+    result = evaluate_test_result_file(args.input, args.include_errors)
     write_evaluation_result(result, args.output)
     print(
         json.dumps(
             {
-                "records": len(result.records),
-                "skipped_errors": result.skipped_errors,
-                "skipped_without_ground_truth": result.skipped_without_ground_truth,
+                "metrics_calculated": result.metrics is not None,
                 "output": args.output,
             },
             indent=2,

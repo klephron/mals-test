@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate metrics calculated by evaluate_completions.py."""
+"""Aggregate metrics calculated by evaluate_test_result.py."""
 
 from __future__ import annotations
 
@@ -11,18 +11,16 @@ from statistics import mean
 from typing import Any
 
 try:
-    from .evaluate_completions import (
-        EvaluatedCompletion,
+    from .evaluate_test_result import (
         EvaluationResult,
         MetricScores,
-        evaluated_completion_from_dict,
+        read_evaluation_results,
     )
 except ImportError:
-    from evaluate_completions import (
-        EvaluatedCompletion,
+    from evaluate_test_result import (
         EvaluationResult,
         MetricScores,
-        evaluated_completion_from_dict,
+        read_evaluation_results,
     )
 
 
@@ -53,30 +51,30 @@ def aggregation_result_to_dict(result: AggregationResult) -> dict[str, Any]:
     return asdict(result)
 
 
-def group_value(record: EvaluatedCompletion, field: str) -> str:
+def group_value(record: EvaluationResult, field: str) -> str:
     if field == "server":
         return record.server
     if field == "method":
         return record.method
     if field == "dataset":
-        return str(record.case.get("dataset") or "")
+        return record.case.dataset
     if field == "language":
-        return str(record.case.get("language") or "")
+        return record.case.language
     if field == "id":
-        return str(record.case.get("id") or "")
-    return str(getattr(record, field, record.case.get(field, "")) or "")
+        return record.case.id
+    return str(getattr(record, field, getattr(record.case, field, "")) or "")
 
 
-def group_key(record: EvaluatedCompletion, group_by: list[str]) -> tuple[str, ...]:
+def group_key(record: EvaluationResult, group_by: list[str]) -> tuple[str, ...]:
     return tuple(group_value(record, field) for field in group_by)
 
 
-def aggregate_metrics(
-    records: list[EvaluatedCompletion],
-    group_by: list[str] | None = None,
+def aggregate_evaluation_results(
+    records: list[EvaluationResult],
+    group_by: list[str],
 ) -> AggregationResult:
-    fields = group_by or ["server", "dataset", "language"]
-    groups: dict[tuple[str, ...], list[EvaluatedCompletion]] = {}
+    fields = group_by
+    groups: dict[tuple[str, ...], list[EvaluationResult]] = {}
     skipped_without_metrics = 0
 
     for record in records:
@@ -111,34 +109,6 @@ def aggregate_metrics(
     )
 
 
-def aggregate_evaluation_result(
-    result: EvaluationResult,
-    group_by: list[str] | None = None,
-) -> AggregationResult:
-    return aggregate_metrics(result.records, group_by)
-
-
-def load_evaluated_records(path: Path) -> list[EvaluatedCompletion]:
-    if path.is_dir():
-        records: list[EvaluatedCompletion] = []
-        for item in sorted(path.rglob("*.json")):
-            records.extend(load_evaluated_records(item))
-        return records
-
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(data, dict) and "records" in data:
-        return [evaluated_completion_from_dict(item) for item in data["records"]]
-    if isinstance(data, list):
-        return [evaluated_completion_from_dict(item) for item in data]
-    if isinstance(data, dict):
-        return [evaluated_completion_from_dict(data)]
-    raise ValueError(f"{path}: expected JSON object or array")
-
-
-def read_evaluated_records(path: str | Path) -> list[EvaluatedCompletion]:
-    return load_evaluated_records(Path(path))
-
-
 def write_aggregation_result(result: AggregationResult, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,11 +135,11 @@ def read_aggregation_result(path: str | Path) -> AggregationResult:
     )
 
 
-def aggregate_metric_files(
-    input_path: str | Path,
-    group_by: list[str] | None = None,
+def aggregate_evaluation_result_files(
+    input_paths: list[str | Path],
+    group_by: list[str],
 ) -> AggregationResult:
-    return aggregate_metrics(read_evaluated_records(input_path), group_by)
+    return aggregate_evaluation_results(read_evaluation_results(input_paths), group_by)
 
 
 def parse_group_by(value: str) -> list[str]:
@@ -178,12 +148,12 @@ def parse_group_by(value: str) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", "-i", default="results/evaluated_completions.json")
-    parser.add_argument("--output", "-o", default="results/metrics_summary.json")
+    parser.add_argument("--output", "-o", default="result/metrics_summary.json")
     parser.add_argument("--group-by", default="server,dataset,language")
+    parser.add_argument("inputs", nargs="+")
     args = parser.parse_args()
 
-    result = aggregate_metric_files(args.input, parse_group_by(args.group_by))
+    result = aggregate_evaluation_result_files(args.inputs, parse_group_by(args.group_by))
     write_aggregation_result(result, args.output)
     print(
         json.dumps(
