@@ -7,7 +7,6 @@ var completionTextFields = []string{
 	"generatedText",
 	"completion",
 	"text",
-	"label",
 }
 
 var completionTextFieldSet = func() map[string]bool {
