@@ -1,45 +1,58 @@
 package main
 
+var completionTextFields = []string{
+	"newText",
+	"insertText",
+	"generated_text",
+	"generatedText",
+	"completion",
+	"text",
+	"label",
+}
+
+var completionTextFieldSet = func() map[string]bool {
+	fields := map[string]bool{}
+	for _, field := range completionTextFields {
+		fields[field] = true
+	}
+	return fields
+}()
+
 func completionExtract(v any) []string {
-	var out []string
+	var completions []string
 	seen := map[string]bool{}
 	var walk func(any, string)
-	walk = func(x any, key string) {
-		switch t := x.(type) {
+	walk = func(value any, fieldName string) {
+		switch t := value.(type) {
 		case string:
-			if completionIsKey(key) && t != "" && !seen[t] {
+			if completionIsTextField(fieldName) && t != "" && !seen[t] {
 				seen[t] = true
-				out = append(out, t)
+				completions = append(completions, t)
 			}
 		case []any:
 			for _, item := range t {
-				walk(item, key)
+				walk(item, fieldName)
 			}
 		case map[string]any:
 			if textEdit, ok := t["textEdit"]; ok {
-				walk(textEdit, "textEdit")
+				walk(textEdit, "")
 			}
-			for _, k := range []string{"newText", "insertText", "generated_text", "generatedText", "completion", "text", "label"} {
-				if val, ok := t[k]; ok {
-					walk(val, k)
+			for _, field := range completionTextFields {
+				if val, ok := t[field]; ok {
+					walk(val, field)
 				}
 			}
-			for k, val := range t {
-				if k != "documentation" && k != "detail" {
-					walk(val, k)
+			for field, val := range t {
+				if field != "documentation" && field != "detail" {
+					walk(val, field)
 				}
 			}
 		}
 	}
 	walk(v, "")
-	return out
+	return completions
 }
 
-func completionIsKey(k string) bool {
-	switch k {
-	case "newText", "insertText", "generated_text", "generatedText", "completion", "text", "label", "textEdit":
-		return true
-	default:
-		return false
-	}
+func completionIsTextField(fieldName string) bool {
+	return completionTextFieldSet[fieldName]
 }

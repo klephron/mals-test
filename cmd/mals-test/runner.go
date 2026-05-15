@@ -69,7 +69,7 @@ func runnerInitialize(ctx context.Context, client *lspClient, spec serverSpec, r
 
 func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, root string, tc testCase, timeout time.Duration, includeRaw bool) testResult {
 	start := time.Now()
-	rec := testResult{Case: tc, Server: runnerServerLabel(spec), Method: spec.Method}
+	res := testResult{Case: tc, Server: runnerServerLabel(spec), Method: spec.Method}
 	targetAbs := filepath.Join(root, filepath.FromSlash(tc.SourceFile))
 	targetURI := fileURI(targetAbs)
 	pos := map[string]int{"line": tc.Cursor.Line, "character": tc.Cursor.Character}
@@ -77,7 +77,7 @@ func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, r
 	for _, file := range projectFiles(root, tc) {
 		text, readErr := os.ReadFile(file)
 		if readErr != nil {
-			rec.Error = readErr.Error()
+			res.Error = readErr.Error()
 			continue
 		}
 		rel, _ := filepath.Rel(root, file)
@@ -90,25 +90,25 @@ func runnerCompletion(ctx context.Context, client *lspClient, spec serverSpec, r
 			},
 		})
 		if err != nil {
-			rec.Error = err.Error()
+			res.Error = err.Error()
 			break
 		}
 	}
 
-	if rec.Error == "" {
+	if res.Error == "" {
 		params := runnerGetCompletionParams(spec, tc, targetURI, pos, targetAbs)
 		raw, reqErr := client.request(ctx, spec.Method, params, timeout)
 		if reqErr != nil {
-			rec.Error = reqErr.Error()
+			res.Error = reqErr.Error()
 		} else {
-			rec.Completions = completionExtract(raw)
+			res.Completions = completionExtract(raw)
 			if includeRaw {
-				rec.RawResult = raw
+				res.RawResult = raw
 			}
 		}
 	}
-	rec.DurationMS = time.Since(start).Milliseconds()
-	return rec
+	res.DurationMS = time.Since(start).Milliseconds()
+	return res
 }
 
 func runnerGetCompletionParams(spec serverSpec, tc testCase, uri string, pos map[string]int, abs string) map[string]any {
