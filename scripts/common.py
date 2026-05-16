@@ -69,6 +69,29 @@ class EvaluationResult:
 
 
 @dataclass(frozen=True)
+class DiagnosticEvaluation:
+    variant: str
+    project_dir: str
+    command: list[str]
+    return_code: int
+    diagnostic_count: int
+    new_diagnostics: list[str]
+    new_diagnostic_count: int
+
+
+@dataclass(frozen=True)
+class MaterializedEvaluation:
+    materialized_project: str
+    case: TestCase
+    server: str
+    method: str
+    duration_ms: int
+    checker: str
+    baseline: DiagnosticEvaluation
+    completions: list[DiagnosticEvaluation]
+
+
+@dataclass(frozen=True)
 class MetricSummary:
     group: dict[str, str]
     count: int
@@ -202,6 +225,40 @@ def evaluation_result_to_dict(result: EvaluationResult) -> JsonObject:
     return asdict(result)
 
 
+def diagnostic_evaluation_from_dict(data: JsonObject) -> DiagnosticEvaluation:
+    return DiagnosticEvaluation(
+        variant=string_value(data.get("variant")),
+        project_dir=string_value(data.get("project_dir")),
+        command=[string_value(item) for item in json_list(data.get("command"))],
+        return_code=int_value(data.get("return_code")),
+        diagnostic_count=int_value(data.get("diagnostic_count")),
+        new_diagnostics=[
+            string_value(item) for item in json_list(data.get("new_diagnostics"))
+        ],
+        new_diagnostic_count=int_value(data.get("new_diagnostic_count")),
+    )
+
+
+def materialized_evaluation_from_dict(data: JsonObject) -> MaterializedEvaluation:
+    return MaterializedEvaluation(
+        materialized_project=string_value(data.get("materialized_project")),
+        case=test_case_from_dict(json_object(data.get("case"))),
+        server=string_value(data.get("server")),
+        method=string_value(data.get("method")),
+        duration_ms=int_value(data.get("duration_ms")),
+        checker=string_value(data.get("checker")),
+        baseline=diagnostic_evaluation_from_dict(json_object(data.get("baseline"))),
+        completions=[
+            diagnostic_evaluation_from_dict(json_object(item))
+            for item in json_list(data.get("completions"))
+        ],
+    )
+
+
+def materialized_evaluation_to_dict(result: MaterializedEvaluation) -> JsonObject:
+    return asdict(result)
+
+
 def aggregation_result_to_dict(result: AggregationResult) -> JsonObject:
     return asdict(result)
 
@@ -256,6 +313,34 @@ def read_evaluation_results(paths: list[str | Path]) -> list[EvaluationResult]:
     records: list[EvaluationResult] = []
     for path in paths:
         records.append(read_evaluation_result(Path(path)))
+    return records
+
+
+def write_materialized_evaluation(
+    result: MaterializedEvaluation,
+    path: str | Path,
+) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(materialized_evaluation_to_dict(result), indent=2),
+        encoding="utf-8",
+    )
+
+
+def read_materialized_evaluation(path: str | Path) -> MaterializedEvaluation:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected one JSON object")
+    return materialized_evaluation_from_dict(json_object(data))
+
+
+def read_materialized_evaluations(
+    paths: list[str | Path],
+) -> list[MaterializedEvaluation]:
+    records: list[MaterializedEvaluation] = []
+    for path in paths:
+        records.append(read_materialized_evaluation(Path(path)))
     return records
 
 
