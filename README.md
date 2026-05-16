@@ -40,7 +40,7 @@ generated completions, request metadata, duration, and any generation error.
 go run ./cmd/mals-test \
   --server lsp-ai \
   --method textDocument/completion \
-  --init-options ./config/lsp-ai.json \
+  --init-options ./config/lsp-ai_v1.json \
   --timeout 5m \
   --out result/mals-test/lsp-ai/humanevalpack/cpp-CPP_0.json \
   data/humanevalpack.projects/cpp-CPP_0
@@ -80,7 +80,7 @@ Calculate direct metrics for one `mals-test` result:
 ```sh
 python scripts/evaluate_direct.py \
   --input result/mals-test/lsp-ai/humanevalpack/cpp-CPP_0.json \
-  --output result/evaluated/lsp-ai/humanevalpack/cpp-CPP_0.json
+  --output result/evaluated-direct/lsp-ai/humanevalpack/cpp-CPP_0.json
 ```
 
 The evaluated JSON stores `completion_metrics`: one metric record per generated
@@ -96,7 +96,7 @@ diagnostics, and only new diagnostics are stored for each completion.
 python scripts/evaluate_materialized.py \
   --project result/materialized/lsp-ai/humanevalpack/cpp-CPP_0 \
   --result result/mals-test/lsp-ai/humanevalpack/cpp-CPP_0.json \
-  --output result/materialized-evaluated/lsp-ai/humanevalpack/cpp-CPP_0.json
+  --output result/evaluated-materialized/lsp-ai/humanevalpack/cpp-CPP_0.json
 ```
 
 Checker selection is based on `case.language` from the `mals-test` result.

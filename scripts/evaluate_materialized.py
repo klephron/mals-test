@@ -318,12 +318,16 @@ def main() -> None:
         materialized_project,
         test_result,
     )
-
-    if args.output:
-        write_materialized_result(result, args.output)
-
-    payload = materialized_result_to_dict(result)
-    print(json.dumps(payload, indent=2))
+    write_materialized_result(result, args.output)
+    print(
+        json.dumps(
+            {
+                "output": args.output,
+                "completion_diagnostics": len(result.completion_diagnostics),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

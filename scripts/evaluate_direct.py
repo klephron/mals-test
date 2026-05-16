@@ -504,9 +504,8 @@ def main() -> None:
     print(
         json.dumps(
             {
-                "metrics_calculated": bool(result.completion_metrics),
-                "completion_metrics_calculated": len(result.completion_metrics),
                 "output": args.output,
+                "completion_metrics": len(result.completion_metrics),
             },
             indent=2,
         )
