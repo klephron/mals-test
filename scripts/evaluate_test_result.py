@@ -48,15 +48,15 @@ def identifier_metrics_mode(value: str | IdentifierMetricsMode) -> IdentifierMet
 
 
 TREE_SITTER_PACKAGES = {
-    "python": "tree_sitter_python",
-    "java": "tree_sitter_java",
-    "go": "tree_sitter_go",
-    "js": "tree_sitter_javascript",
-    "javascript": "tree_sitter_javascript",
-    "typescript": "tree_sitter_typescript",
     "cpp": "tree_sitter_cpp",
-    "rust": "tree_sitter_rust",
     "csharp": "tree_sitter_c_sharp",
+    "go": "tree_sitter_go",
+    "java": "tree_sitter_java",
+    "javascript": "tree_sitter_javascript",
+    "js": "tree_sitter_javascript",
+    "python": "tree_sitter_python",
+    "rust": "tree_sitter_rust",
+    "typescript": "tree_sitter_typescript",
 }
 
 TREE_SITTER_LANGUAGE_FACTORIES = {
