@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 try:
-    from scripts.common_normalize import (
+    from scripts.common_extract import (
         build_completion_payload,
         read_jsonl,
         sanitize_name,
@@ -13,7 +13,7 @@ try:
         write_text,
     )
 except ModuleNotFoundError:
-    from common_normalize import (
+    from common_extract import (
         build_completion_payload,
         read_jsonl,
         sanitize_name,
@@ -84,7 +84,7 @@ def target_prefix(language: str, row: dict) -> str:
     return code
 
 
-def normalize(input_dir: Path, output_dir: Path, languages: set[str] | None, limit: int | None) -> int:
+def extract(input_dir: Path, output_dir: Path, languages: set[str] | None, limit: int | None) -> int:
     count = 0
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -139,7 +139,7 @@ def main() -> None:
     args = parser.parse_args()
 
     languages = None if args.languages == "all" else {item.strip() for item in args.languages.split(",") if item.strip()}
-    count = normalize(Path(args.input), Path(args.output), languages, args.limit)
+    count = extract(Path(args.input), Path(args.output), languages, args.limit)
     print(f"created {count} {DATASET} projects in {args.output}")
 
 

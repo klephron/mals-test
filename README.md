@@ -12,17 +12,17 @@ uv run --with "datasets" --with "huggingface_hub" scripts/load_humanevalpack.py
 uv run --python "3.12" --with "datasets<4" --with "huggingface_hub" scripts/load_repobench-c.py
 ```
 
-## Normalize project dataset layouts
+## Extract project dataset layouts
 
 ```sh
-python scripts/normalize_cceval.py
-python scripts/normalize_humanevalpack.py
-python scripts/normalize_repobench-c.py
+python scripts/extract_cceval.py
+python scripts/extract_humanevalpack.py
+python scripts/extract_repobench-c.py
 ```
 
-## Run test for normalized project
+## Run test for extracted project
 
-The Go runner expects one normalized project directory after the flags. The directory must contain `completion.json` and `root/`.
+The Go runner expects one extracted project directory after the flags. The directory must contain `completion.json` and `root/`.
 
 ```sh
 go run ./cmd/mals-test \

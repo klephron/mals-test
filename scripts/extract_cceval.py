@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 try:
-    from scripts.common_normalize import (
+    from scripts.common_extract import (
         build_completion_payload,
         extension,
         read_jsonl,
@@ -13,7 +13,7 @@ try:
         write_text,
     )
 except ModuleNotFoundError:
-    from common_normalize import (
+    from common_extract import (
         build_completion_payload,
         extension,
         read_jsonl,
@@ -37,7 +37,7 @@ def crossfile_chunks(row: dict) -> dict[str, str]:
     return {filename: "\n\n".join(parts).rstrip() + "\n" for filename, parts in chunks.items()}
 
 
-def normalize(input_dir: Path, output_dir: Path, languages: set[str] | None, variants: set[str] | None, limit: int | None) -> int:
+def extract(input_dir: Path, output_dir: Path, languages: set[str] | None, variants: set[str] | None, limit: int | None) -> int:
     count = 0
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -101,7 +101,7 @@ def main() -> None:
 
     languages = None if args.languages == "all" else {item.strip() for item in args.languages.split(",") if item.strip()}
     variants = None if args.variants == "all" else {item.strip() for item in args.variants.split(",") if item.strip()}
-    count = normalize(Path(args.input), Path(args.output), languages, variants, args.limit)
+    count = extract(Path(args.input), Path(args.output), languages, variants, args.limit)
     print(f"created {count} {DATASET} projects in {args.output}")
 
 
