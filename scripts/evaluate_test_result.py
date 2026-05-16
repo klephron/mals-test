@@ -245,25 +245,6 @@ def node_text(source: bytes, node: Node) -> str:
     return source[node.start_byte : node.end_byte].decode("utf-8", errors="ignore")
 
 
-def is_identifier_node(node: Node) -> bool:
-    if node.named_children:
-        return False
-
-    node_type = node.type
-    return (
-        node_type in {
-            "identifier",
-            "property_identifier",
-            "field_identifier",
-            "type_identifier",
-            "scoped_type_identifier",
-            "primitive_type",
-            "predefined_type",
-        }
-        or node_type.endswith("_identifier")
-    )
-
-
 def same_node(left: Node | None, right: Node | None) -> bool:
     if left is None or right is None:
         return False
@@ -283,48 +264,67 @@ def ancestors(node: Node) -> list[Node]:
     return values
 
 
+def is_identifier_node(node: Node) -> bool:
+    if node.named_children:
+        return False
+
+    node_type = node.type
+    return (
+        node_type in {
+            "field_identifier",
+            "identifier",
+            "predefined_type",
+            "primitive_type",
+            "property_identifier",
+            "scoped_type_identifier",
+            "type_identifier",
+        }
+        or node_type.endswith("_identifier")
+    )
+
+
 def node_has_type_context(node: Node) -> bool:
     if node.type in {
-        "type_identifier",
-        "scoped_type_identifier",
-        "primitive_type",
         "predefined_type",
+        "primitive_type",
+        "scoped_type_identifier",
+        "type_identifier",
     }:
         return True
     return any(parent.type in {
-        "type",
-        "type_annotation",
-        "type_identifier",
-        "type_arguments",
-        "type_parameters",
-        "type_parameter",
-        "generic_type",
-        "union_type",
-        "optional_type",
         "array_type",
-        "pointer_type",
-        "slice_type",
-        "qualified_type",
-        "scoped_type_identifier",
-        "primitive_type",
-        "predefined_type",
-        "trait_bound",
         "bounded_type",
         "extends_clause",
+        "generic_type",
         "implements_clause",
+        "optional_type",
+        "pointer_type",
+        "predefined_type",
+        "primitive_type",
+        "qualified_type",
+        "scoped_type_identifier",
+        "slice_type",
         "superclass",
+        "trait_bound",
+        "type",
+        "type_annotation",
+        "type_arguments",
+        "type_identifier",
+        "type_parameter",
+        "type_parameters",
+        "union_type",
     } for parent in ancestors(node))
 
 
 def node_has_import_context(node: Node) -> bool:
     return any(parent.type in {
-        "import_statement",
         "import_declaration",
         "import_spec",
+        "import_statement",
+        "namespace_import",
         "package_clause",
         "use_declaration",
         "using_directive",
-        "namespace_import",
     } for parent in ancestors(node))
 
 
@@ -339,43 +339,43 @@ def is_declaration_name(node: Node, declaration_types: set[str]) -> bool:
 
 def tree_sitter_identifier_role(node: Node) -> str:
     if (is_declaration_name(node, {
-        "class_definition",
         "class_declaration",
-        "interface_declaration",
-        "struct_declaration",
-        "struct_item",
+        "class_definition",
+        "class_specifier",
         "enum_declaration",
         "enum_item",
-        "type_declaration",
-        "type_alias_declaration",
-        "type_spec",
-        "class_specifier",
-        "struct_specifier",
         "enum_specifier",
+        "interface_declaration",
         "record_declaration",
+        "struct_declaration",
+        "struct_item",
+        "struct_specifier",
         "trait_item",
+        "type_alias_declaration",
+        "type_declaration",
+        "type_spec",
     }) or node_has_type_context(node)):
         return "type"
     if node_has_import_context(node):
         return "import"
     if is_declaration_name(node, {
-        "function_definition",
+        "assignment",
+        "const_declaration",
+        "field_declaration",
+        "formal_parameter",
         "function_declaration",
-        "method_declaration",
-        "method_definition",
+        "function_definition",
         "function_item",
         "function_signature_item",
         "lexical_declaration",
-        "variable_declaration",
         "local_variable_declaration",
-        "field_declaration",
-        "formal_parameter",
+        "method_declaration",
+        "method_definition",
         "parameter",
         "parameter_declaration",
-        "assignment",
         "short_var_declaration",
-        "const_declaration",
         "var_declaration",
+        "variable_declaration",
     }):
         return "value"
     return "value"
