@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 try:
-    from scripts.common_extract import (
+    from scripts.extract_common import (
         build_completion_payload,
         read_jsonl,
         sanitize_name,
@@ -13,7 +13,7 @@ try:
         write_text,
     )
 except ModuleNotFoundError:
-    from common_extract import (
+    from extract_common import (
         build_completion_payload,
         read_jsonl,
         sanitize_name,

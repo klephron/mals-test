@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 try:
-    from scripts.common_extract import (
+    from scripts.extract_common import (
         build_completion_payload,
         extension,
         read_jsonl,
@@ -13,7 +13,7 @@ try:
         write_text,
     )
 except ModuleNotFoundError:
-    from common_extract import (
+    from extract_common import (
         build_completion_payload,
         extension,
         read_jsonl,
