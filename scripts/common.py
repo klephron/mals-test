@@ -61,11 +61,7 @@ class EvaluationResult:
     case: TestCase
     server: str
     method: str
-    completions: list[str]
-    metrics: MetricScores | None
-    completion_metrics: list[CompletionEvaluation] | None = None
-    error: str = ""
-    duration_ms: int = 0
+    completion_metrics: list[CompletionEvaluation]
 
 
 @dataclass(frozen=True)
@@ -95,7 +91,6 @@ class MaterializedEvaluation:
 class MetricSummary:
     group: dict[str, str]
     count: int
-    error_count: int
     metrics: MetricScores
 
 
@@ -104,6 +99,23 @@ class AggregationResult:
     summary: list[MetricSummary]
     record_count: int
     skipped_without_metrics: int = 0
+
+
+@dataclass(frozen=True)
+class MaterializedDiagnosticSummary:
+    group: dict[str, str]
+    count: int
+    completion_count: int
+    avg_baseline_diagnostic_count: float
+    avg_completion_diagnostic_count: float
+    avg_new_diagnostic_count: float
+
+
+@dataclass(frozen=True)
+class MaterializedAggregationResult:
+    summary: list[MaterializedDiagnosticSummary]
+    record_count: int
+    completion_count: int
 
 
 def json_object(value: object) -> JsonObject:
@@ -204,20 +216,13 @@ def completion_evaluations_from_list(data: list[object]) -> list[CompletionEvalu
 
 
 def evaluation_result_from_dict(data: JsonObject) -> EvaluationResult:
-    metrics = data.get("metrics")
     return EvaluationResult(
         case=test_case_from_dict(json_object(data.get("case"))),
         server=string_value(data.get("server")),
         method=string_value(data.get("method")),
-        completions=[string_value(item) for item in json_list(data.get("completions"))],
-        metrics=metric_scores_from_dict(json_object(metrics))
-        if isinstance(metrics, dict)
-        else None,
         completion_metrics=completion_evaluations_from_list(
             json_list(data.get("completion_metrics"))
         ),
-        error=string_value(data.get("error")),
-        duration_ms=int_value(data.get("duration_ms")),
     )
 
 
@@ -263,6 +268,12 @@ def aggregation_result_to_dict(result: AggregationResult) -> JsonObject:
     return asdict(result)
 
 
+def materialized_aggregation_result_to_dict(
+    result: MaterializedAggregationResult,
+) -> JsonObject:
+    return asdict(result)
+
+
 def metric_summary_from_dict(data: JsonObject) -> MetricSummary:
     return MetricSummary(
         group={
@@ -270,7 +281,6 @@ def metric_summary_from_dict(data: JsonObject) -> MetricSummary:
             for field, value in json_object(data.get("group")).items()
         },
         count=int_value(data.get("count")),
-        error_count=int_value(data.get("error_count")),
         metrics=metric_scores_from_dict(json_object(data.get("metrics"))),
     )
 
@@ -283,6 +293,39 @@ def aggregation_result_from_dict(data: JsonObject) -> AggregationResult:
         ],
         record_count=int_value(data.get("record_count")),
         skipped_without_metrics=int_value(data.get("skipped_without_metrics")),
+    )
+
+
+def materialized_diagnostic_summary_from_dict(
+    data: JsonObject,
+) -> MaterializedDiagnosticSummary:
+    return MaterializedDiagnosticSummary(
+        group={
+            string_value(field): string_value(value)
+            for field, value in json_object(data.get("group")).items()
+        },
+        count=int_value(data.get("count")),
+        completion_count=int_value(data.get("completion_count")),
+        avg_baseline_diagnostic_count=float_value(
+            data.get("avg_baseline_diagnostic_count")
+        ),
+        avg_completion_diagnostic_count=float_value(
+            data.get("avg_completion_diagnostic_count")
+        ),
+        avg_new_diagnostic_count=float_value(data.get("avg_new_diagnostic_count")),
+    )
+
+
+def materialized_aggregation_result_from_dict(
+    data: JsonObject,
+) -> MaterializedAggregationResult:
+    return MaterializedAggregationResult(
+        summary=[
+            materialized_diagnostic_summary_from_dict(json_object(summary))
+            for summary in json_list(data.get("summary"))
+        ],
+        record_count=int_value(data.get("record_count")),
+        completion_count=int_value(data.get("completion_count")),
     )
 
 
@@ -358,3 +401,24 @@ def read_aggregation_result(path: str | Path) -> AggregationResult:
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected one JSON object")
     return aggregation_result_from_dict(json_object(data))
+
+
+def write_materialized_aggregation_result(
+    result: MaterializedAggregationResult,
+    path: str | Path,
+) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(materialized_aggregation_result_to_dict(result), indent=2),
+        encoding="utf-8",
+    )
+
+
+def read_materialized_aggregation_result(
+    path: str | Path,
+) -> MaterializedAggregationResult:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected one JSON object")
+    return materialized_aggregation_result_from_dict(json_object(data))

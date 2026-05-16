@@ -8,6 +8,7 @@ from pathlib import Path
 from statistics import mean
 
 try:
+    from .aggregate_common import group_dict, group_key, parse_group_by
     from .common import (
         AggregationResult,
         EvaluationResult,
@@ -17,6 +18,7 @@ try:
         write_aggregation_result,
     )
 except ImportError:
+    from aggregate_common import group_dict, group_key, parse_group_by
     from common import (
         AggregationResult,
         EvaluationResult,
@@ -35,35 +37,17 @@ METRIC_FIELDS = [
 ]
 
 
-def group_value(record: EvaluationResult, field: str) -> str:
-    if field == "server":
-        return record.server
-    if field == "method":
-        return record.method
-    if field == "dataset":
-        return record.case.dataset
-    if field == "language":
-        return record.case.language
-    if field == "id":
-        return record.case.id
-    return str(getattr(record, field, getattr(record.case, field, "")) or "")
-
-
-def group_key(record: EvaluationResult, group_by: list[str]) -> tuple[str, ...]:
-    return tuple(group_value(record, field) for field in group_by)
-
-
 def combined_metric_score(metrics: MetricScores) -> float:
     return sum(getattr(metrics, field) for field in METRIC_FIELDS)
 
 
 def best_record_metrics(record: EvaluationResult) -> MetricScores | None:
-    if record.completion_metrics:
-        return max(
-            record.completion_metrics,
-            key=lambda item: combined_metric_score(item.metrics),
-        ).metrics
-    return record.metrics
+    if not record.completion_metrics:
+        return None
+    return max(
+        record.completion_metrics,
+        key=lambda item: combined_metric_score(item.metrics),
+    ).metrics
 
 
 def aggregate_evaluation_results(
@@ -93,9 +77,8 @@ def aggregate_evaluation_results(
         )
         summary.append(
             MetricSummary(
-                group={field: value for field, value in zip(fields, key)},
+                group=group_dict(fields, key),
                 count=len(items),
-                error_count=sum(1 for record, _ in items if record.error),
                 metrics=metrics,
             )
         )
@@ -112,10 +95,6 @@ def aggregate_evaluation_result_files(
     group_by: list[str],
 ) -> AggregationResult:
     return aggregate_evaluation_results(read_evaluation_results(input_paths), group_by)
-
-
-def parse_group_by(value: str) -> list[str]:
-    return [part.strip() for part in value.split(",") if part.strip()]
 
 
 def main() -> None:

@@ -467,11 +467,7 @@ def evaluate_test_result(
         case=record.case,
         server=record.server,
         method=record.method,
-        completions=record.completions,
-        metrics=None,
         completion_metrics=completion_metrics,
-        error=record.error,
-        duration_ms=record.duration_ms,
     )
 
 
@@ -509,7 +505,7 @@ def main() -> None:
         json.dumps(
             {
                 "metrics_calculated": bool(result.completion_metrics),
-                "completion_metrics_calculated": len(result.completion_metrics or []),
+                "completion_metrics_calculated": len(result.completion_metrics),
                 "output": args.output,
             },
             indent=2,
