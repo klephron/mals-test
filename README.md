@@ -58,6 +58,17 @@ go run ./cmd/mals-test \
   data/humanevalpack.projects/cpp-CPP_0
 ```
 
+For `mals-adapter`:
+
+```sh
+go run ./cmd/mals-test \
+  --server mals-adapter \
+  --method textDocument/completion \
+  --timeout 5m \
+  --out result/mals-test/mals/humanevalpack/cpp-CPP_0.json \
+  data/humanevalpack.projects/cpp-CPP_0
+```
+
 If `--out` is omitted, the runner writes the completion result to stdout. Other
 messages are written to stderr.
 

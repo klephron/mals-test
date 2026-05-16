@@ -1,0 +1,54 @@
+logs:
+  - name: stderr
+    level: info
+    output:
+      kind: file
+      file: /dev/stderr
+
+models:
+  - name: model1
+    api:
+      kind: openai
+      url: http://localhost:9652
+
+handlers:
+  - name: completion
+    kind: lsp/completion
+    resources:
+      - name: model1
+        model: model1
+        scope: client
+    endpoints:
+      textDocument/completion:
+        default: false
+        execution:
+          - model:
+              resource: model1
+              parameters:
+                schema: json/completionItem
+                max_tokens: 250
+                temperature: 0.2
+              messages:
+                - role: system
+                  content: "You are an expert code completion AI. Complete the code snippet accurately and concisely. Follow the existing code style and patterns. The cursor is marked with <CURSOR>. Only provide the text that should be inserted at <CURSOR>, without explanations."
+                - role: user
+                  content: |
+                    {{ .file.text_before }}<CURSOR>{{ .file.text_after }}
+            assign: llm_result
+
+          - json/parse/completion:
+              input: "[{{ .llm_result }}]"
+            assign: completion_json
+
+          - return: "{{ .completion_json }}"
+
+listeners:
+  - name: lsp-tcp:9651
+    ipc:
+      kind: tcp
+      port: 9651
+    protocol:
+      kind: lsp
+      handlers:
+        - name: completion
+          handler: completion

@@ -36,9 +36,15 @@ func runnerRunServer(ctx context.Context, spec serverSpec, projectDir string, tc
 }
 
 func runnerInitialize(ctx context.Context, client *lspClient, spec serverSpec, root string, timeout time.Duration) error {
+	workspace := map[string]any{
+		"uri":  fileURI(root),
+		"name": filepath.Base(root),
+	}
 	initParams := map[string]any{
-		"processId": os.Getpid(),
-		"rootUri":   fileURI(root),
+		"processId":        os.Getpid(),
+		"rootPath":         root,
+		"rootUri":          fileURI(root),
+		"workspaceFolders": []any{workspace},
 		"capabilities": map[string]any{
 			"textDocument": map[string]any{
 				"completion": map[string]any{
@@ -49,7 +55,8 @@ func runnerInitialize(ctx context.Context, client *lspClient, spec serverSpec, r
 				},
 			},
 			"workspace": map[string]any{
-				"configuration": true,
+				"configuration":    true,
+				"workspaceFolders": true,
 			},
 		},
 		"initializationOptions": spec.InitOptions,

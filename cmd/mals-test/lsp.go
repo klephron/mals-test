@@ -22,14 +22,14 @@ type lspClient struct {
 	reader    *bufio.Reader
 	writeMu   sync.Mutex
 	pendingMu sync.Mutex
-	pending   map[string]chan lspRpcMessage
+	pending   map[int64]chan lspRpcMessage
 	nextID    atomic.Int64
 	closed    chan struct{}
 }
 
 type lspRpcMessage struct {
 	JSONRPC string          `json:"jsonrpc,omitempty"`
-	ID      any             `json:"id,omitempty"`
+	ID      *int64          `json:"id,omitempty"`
 	Method  string          `json:"method,omitempty"`
 	Params  json.RawMessage `json:"params,omitempty"`
 	Result  json.RawMessage `json:"result,omitempty"`
@@ -62,7 +62,7 @@ func lspStartClient(ctx context.Context, command []string) (*lspClient, error) {
 		cmd:     cmd,
 		stdin:   stdin,
 		reader:  bufio.NewReader(stdout),
-		pending: make(map[string]chan lspRpcMessage),
+		pending: make(map[int64]chan lspRpcMessage),
 		closed:  make(chan struct{}),
 	}
 	go c.readLoop()
@@ -70,12 +70,12 @@ func lspStartClient(ctx context.Context, command []string) (*lspClient, error) {
 }
 
 func (c *lspClient) request(ctx context.Context, method string, params any, timeout time.Duration) (any, error) {
-	id := strconv.FormatInt(c.nextID.Add(1), 10)
+	id := c.nextID.Add(1)
 	ch := make(chan lspRpcMessage, 1)
 	c.pendingMu.Lock()
 	c.pending[id] = ch
 	c.pendingMu.Unlock()
-	if err := c.send(lspRpcMessage{JSONRPC: "2.0", ID: id, Method: method, Params: mustRaw(params)}); err != nil {
+	if err := c.send(lspRpcMessage{JSONRPC: "2.0", ID: &id, Method: method, Params: mustRaw(params)}); err != nil {
 		return nil, err
 	}
 	timer := time.NewTimer(timeout)
@@ -132,7 +132,7 @@ func (c *lspClient) readLoop() {
 			continue
 		}
 		if msg.ID != nil && msg.Method == "" {
-			id := fmt.Sprint(msg.ID)
+			id := *msg.ID
 			c.pendingMu.Lock()
 			ch := c.pending[id]
 			delete(c.pending, id)
