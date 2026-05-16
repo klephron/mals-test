@@ -109,9 +109,9 @@ Aggregate outputs from `evaluate_direct.py`.
 
 ```sh
 python scripts/aggregate_direct.py \
-  --output result/aggregated/humanevalpack/lsp-ai.json \
+  --output result/aggregated-direct/humanevalpack/lsp-ai.json \
   --group-by server,dataset,language \
-  result/evaluated/lsp-ai/humanevalpack/cpp-CPP_0.json
+  result/evaluated-direct/lsp-ai/humanevalpack/cpp-CPP_0.json
 ```
 
 The summary includes:
@@ -125,9 +125,9 @@ Aggregate outputs from `evaluate_materialized.py`.
 
 ```sh
 python scripts/aggregate_materialized.py \
-  --output result/materialized-aggregated/humanevalpack/lsp-ai.json \
+  --output result/aggregated-materialized/humanevalpack/lsp-ai.json \
   --group-by server,dataset,language \
-  result/materialized-evaluated/lsp-ai/humanevalpack/cpp-CPP_0.json
+  result/evaluated-materialized/lsp-ai/humanevalpack/cpp-CPP_0.json
 ```
 
 The summary includes:
