@@ -294,7 +294,7 @@ def evaluate_materialized_project(
         duration_ms=record.duration_ms,
         checker=checker,
         baseline=baseline,
-        completions=completions,
+        completion_diagnostics=completions,
     )
 
 def main() -> None:

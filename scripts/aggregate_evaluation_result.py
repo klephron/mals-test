@@ -50,42 +50,66 @@ def best_record_metrics(record: EvaluationResult) -> MetricScores | None:
     ).metrics
 
 
+def avg_record_metrics(record: EvaluationResult) -> MetricScores:
+    return MetricScores(
+        exact_match=mean(
+            completion.metrics.exact_match for completion in record.completion_metrics
+        ),
+        edit_similarity=mean(
+            completion.metrics.edit_similarity for completion in record.completion_metrics
+        ),
+        identifier_exact_match=mean(
+            completion.metrics.identifier_exact_match
+            for completion in record.completion_metrics
+        ),
+        identifier_f1=mean(
+            completion.metrics.identifier_f1 for completion in record.completion_metrics
+        ),
+    )
+
+
+def avg_metrics(metrics: list[MetricScores]) -> MetricScores:
+    return MetricScores(
+        exact_match=mean(item.exact_match for item in metrics),
+        edit_similarity=mean(item.edit_similarity for item in metrics),
+        identifier_exact_match=mean(item.identifier_exact_match for item in metrics),
+        identifier_f1=mean(item.identifier_f1 for item in metrics),
+    )
+
+
 def aggregate_evaluation_results(
     records: list[EvaluationResult],
     group_by: list[str],
 ) -> AggregationResult:
     fields = group_by
-    groups: dict[tuple[str, ...], list[tuple[EvaluationResult, MetricScores]]] = {}
+    groups: dict[tuple[str, ...], list[EvaluationResult]] = {}
     skipped_without_metrics = 0
 
     for record in records:
-        metrics = best_record_metrics(record)
-        if metrics is None:
+        if not record.completion_metrics:
             skipped_without_metrics += 1
             continue
-        groups.setdefault(group_key(record, fields), []).append((record, metrics))
+        groups.setdefault(group_key(record, fields), []).append(record)
 
     summary = []
     for key, items in sorted(groups.items()):
-        metrics = MetricScores(
-            exact_match=mean(metrics.exact_match for _, metrics in items),
-            edit_similarity=mean(metrics.edit_similarity for _, metrics in items),
-            identifier_exact_match=mean(
-                metrics.identifier_exact_match for _, metrics in items
-            ),
-            identifier_f1=mean(metrics.identifier_f1 for _, metrics in items),
-        )
+        record_avg_metrics = [avg_record_metrics(record) for record in items]
+        record_best_metrics = [
+            metrics
+            for record in items
+            if (metrics := best_record_metrics(record)) is not None
+        ]
         summary.append(
             MetricSummary(
                 group=group_dict(fields, key),
                 count=len(items),
-                metrics=metrics,
+                avg_metrics=avg_metrics(record_avg_metrics),
+                best_metrics=avg_metrics(record_best_metrics),
             )
         )
 
     return AggregationResult(
         summary=summary,
-        record_count=len(records),
         skipped_without_metrics=skipped_without_metrics,
     )
 
@@ -94,7 +118,10 @@ def aggregate_evaluation_result_files(
     input_paths: list[str | Path],
     group_by: list[str],
 ) -> AggregationResult:
-    return aggregate_evaluation_results(read_evaluation_results(input_paths), group_by)
+    return aggregate_evaluation_results(
+        read_evaluation_results(input_paths),
+        group_by,
+    )
 
 
 def main() -> None:
@@ -110,9 +137,8 @@ def main() -> None:
         json.dumps(
             {
                 "groups": len(result.summary),
-                "records": result.record_count,
-                "skipped_without_metrics": result.skipped_without_metrics,
                 "output": args.output,
+                "skipped_without_metrics": result.skipped_without_metrics,
             },
             indent=2,
         )

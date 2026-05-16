@@ -84,21 +84,21 @@ class MaterializedEvaluation:
     duration_ms: int
     checker: str
     baseline: DiagnosticEvaluation
-    completions: list[DiagnosticEvaluation]
+    completion_diagnostics: list[DiagnosticEvaluation]
 
 
 @dataclass(frozen=True)
 class MetricSummary:
     group: dict[str, str]
     count: int
-    metrics: MetricScores
+    avg_metrics: MetricScores
+    best_metrics: MetricScores
 
 
 @dataclass(frozen=True)
 class AggregationResult:
     summary: list[MetricSummary]
-    record_count: int
-    skipped_without_metrics: int = 0
+    skipped_without_metrics: int
 
 
 @dataclass(frozen=True)
@@ -106,16 +106,17 @@ class MaterializedDiagnosticSummary:
     group: dict[str, str]
     count: int
     completion_count: int
-    avg_baseline_diagnostic_count: float
+    baseline_diagnostic_count: float
     avg_completion_diagnostic_count: float
     avg_new_diagnostic_count: float
+    best_completion_diagnostic_count: float
+    best_new_diagnostic_count: float
 
 
 @dataclass(frozen=True)
 class MaterializedAggregationResult:
     summary: list[MaterializedDiagnosticSummary]
-    record_count: int
-    completion_count: int
+    skipped_without_metrics: int
 
 
 def json_object(value: object) -> JsonObject:
@@ -253,9 +254,9 @@ def materialized_evaluation_from_dict(data: JsonObject) -> MaterializedEvaluatio
         duration_ms=int_value(data.get("duration_ms")),
         checker=string_value(data.get("checker")),
         baseline=diagnostic_evaluation_from_dict(json_object(data.get("baseline"))),
-        completions=[
+        completion_diagnostics=[
             diagnostic_evaluation_from_dict(json_object(item))
-            for item in json_list(data.get("completions"))
+            for item in json_list(data.get("completion_diagnostics"))
         ],
     )
 
@@ -275,13 +276,17 @@ def materialized_aggregation_result_to_dict(
 
 
 def metric_summary_from_dict(data: JsonObject) -> MetricSummary:
+    legacy_metrics = data.get("metrics")
+    avg_metrics = data.get("avg_metrics")
+    best_metrics = data.get("best_metrics")
     return MetricSummary(
         group={
             string_value(field): string_value(value)
             for field, value in json_object(data.get("group")).items()
         },
         count=int_value(data.get("count")),
-        metrics=metric_scores_from_dict(json_object(data.get("metrics"))),
+        avg_metrics=metric_scores_from_dict(json_object(avg_metrics or legacy_metrics)),
+        best_metrics=metric_scores_from_dict(json_object(best_metrics or legacy_metrics)),
     )
 
 
@@ -291,8 +296,7 @@ def aggregation_result_from_dict(data: JsonObject) -> AggregationResult:
             metric_summary_from_dict(json_object(summary))
             for summary in json_list(data.get("summary"))
         ],
-        record_count=int_value(data.get("record_count")),
-        skipped_without_metrics=int_value(data.get("skipped_without_metrics")),
+        skipped_without_metrics=int_value(data.get("skipped_without_metrics"))
     )
 
 
@@ -306,13 +310,18 @@ def materialized_diagnostic_summary_from_dict(
         },
         count=int_value(data.get("count")),
         completion_count=int_value(data.get("completion_count")),
-        avg_baseline_diagnostic_count=float_value(
-            data.get("avg_baseline_diagnostic_count")
+        baseline_diagnostic_count=float_value(
+            data.get("baseline_diagnostic_count")
+            or data.get("avg_baseline_diagnostic_count")
         ),
         avg_completion_diagnostic_count=float_value(
             data.get("avg_completion_diagnostic_count")
         ),
         avg_new_diagnostic_count=float_value(data.get("avg_new_diagnostic_count")),
+        best_completion_diagnostic_count=float_value(
+            data.get("best_completion_diagnostic_count")
+        ),
+        best_new_diagnostic_count=float_value(data.get("best_new_diagnostic_count")),
     )
 
 
@@ -324,8 +333,7 @@ def materialized_aggregation_result_from_dict(
             materialized_diagnostic_summary_from_dict(json_object(summary))
             for summary in json_list(data.get("summary"))
         ],
-        record_count=int_value(data.get("record_count")),
-        completion_count=int_value(data.get("completion_count")),
+        skipped_without_metrics=int_value(data.get("skipped_without_metrics"))
     )
 
 
