@@ -17,21 +17,21 @@ from tree_sitter import Language, Node, Parser
 
 try:
     from .common import (
-        CompletionEvaluation,
-        EvaluationResult,
+        MetricEvaluation,
+        DirectResult,
         MetricScores,
         TestResult,
         read_test_result,
-        write_evaluation_result,
+        write_direct_result,
     )
 except ImportError:
     from common import (
-        CompletionEvaluation,
-        EvaluationResult,
+        MetricEvaluation,
+        DirectResult,
         MetricScores,
         TestResult,
         read_test_result,
-        write_evaluation_result,
+        write_direct_result,
     )
 
 
@@ -449,11 +449,11 @@ def evaluate_test_result(
     record: TestResult,
     include_errors: bool,
     identifier_metrics: IdentifierMetricsMode,
-) -> EvaluationResult:
+) -> DirectResult:
     completion_metrics = []
     if record.case.ground_truth and (include_errors or not record.error):
         completion_metrics = [
-            CompletionEvaluation(
+            MetricEvaluation(
                 completion=completion,
                 metrics=calculate_metrics(
                     record,
@@ -463,7 +463,7 @@ def evaluate_test_result(
             )
             for completion in record.completions
         ]
-    return EvaluationResult(
+    return DirectResult(
         case=record.case,
         server=record.server,
         method=record.method,
@@ -475,7 +475,7 @@ def evaluate_test_result_file(
     input_path: str | Path,
     include_errors: bool = False,
     identifier_metrics: IdentifierMetricsMode = IdentifierMetricsMode.TREE_SITTER,
-) -> EvaluationResult:
+) -> DirectResult:
     return evaluate_test_result(read_test_result(input_path), include_errors, identifier_metrics)
 
 
@@ -500,7 +500,7 @@ def main() -> None:
         args.include_errors,
         IdentifierMetricsMode(args.identifier_metrics),
     )
-    write_evaluation_result(result, args.output)
+    write_direct_result(result, args.output)
     print(
         json.dumps(
             {

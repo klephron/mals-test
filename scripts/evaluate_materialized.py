@@ -13,20 +13,20 @@ from pathlib import Path
 try:
     from .common import (
         DiagnosticEvaluation,
-        MaterializedEvaluation,
+        MaterializedResult,
         TestResult,
         read_test_result,
-        write_materialized_evaluation,
-        materialized_evaluation_to_dict,
+        write_materialized_result,
+        materialized_result_to_dict,
     )
 except ImportError:
     from common import (
         DiagnosticEvaluation,
-        MaterializedEvaluation,
+        MaterializedResult,
         TestResult,
         read_test_result,
-        write_materialized_evaluation,
-        materialized_evaluation_to_dict,
+        write_materialized_result,
+        materialized_result_to_dict,
     )
 
 
@@ -253,10 +253,10 @@ def evaluate_checker_result(
 
 def evaluate_materialized_project(
     materialized_project: Path,
-    record: TestResult,
-) -> MaterializedEvaluation:
-    language = record.case.language
-    source_file = record.case.source_file
+    test_result: TestResult,
+) -> MaterializedResult:
+    language = test_result.case.language
+    source_file = test_result.case.source_file
 
     baseline_dir = materialized_project / "baseline"
     if not baseline_dir.is_dir():
@@ -270,14 +270,14 @@ def evaluate_materialized_project(
         baseline_checker_result=None,
     )
 
-    completions = []
-    for index, _ in enumerate(record.completions):
+    diagnostic_evaluations = []
+    for index, _ in enumerate(test_result.completions):
         variant = f"completion_{index}"
         variant_dir = materialized_project / variant
         if not variant_dir.is_dir():
             raise FileNotFoundError(f"missing completion directory: {variant_dir}")
         checker_result = run_checker(variant_dir, language, source_file)
-        completions.append(
+        diagnostic_evaluations.append(
             evaluate_checker_result(
                 variant_dir,
                 variant,
@@ -286,15 +286,13 @@ def evaluate_materialized_project(
             )
         )
     checker = " ".join(baseline.command[:1])
-    return MaterializedEvaluation(
+    return MaterializedResult(
         materialized_project=str(materialized_project),
-        case=record.case,
-        server=record.server,
-        method=record.method,
-        duration_ms=record.duration_ms,
+        case=test_result.case,
+        server=test_result.server,
         checker=checker,
         baseline=baseline,
-        completion_diagnostics=completions,
+        completion_diagnostics=diagnostic_evaluations,
     )
 
 def main() -> None:
@@ -315,16 +313,16 @@ def main() -> None:
     args = parser.parse_args()
 
     materialized_project = Path(args.project)
-    record = read_test_result(args.result)
-    evaluation = evaluate_materialized_project(
+    test_result = read_test_result(args.result)
+    result = evaluate_materialized_project(
         materialized_project,
-        record,
+        test_result,
     )
 
     if args.output:
-        write_materialized_evaluation(evaluation, args.output)
+        write_materialized_result(result, args.output)
 
-    payload = materialized_evaluation_to_dict(evaluation)
+    payload = materialized_result_to_dict(result)
     print(json.dumps(payload, indent=2))
 
 

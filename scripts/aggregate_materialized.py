@@ -12,8 +12,8 @@ try:
     from .common import (
         MaterializedAggregationResult,
         MaterializedDiagnosticSummary,
-        MaterializedEvaluation,
-        read_materialized_evaluations,
+        MaterializedResult,
+        read_materialized_results,
         write_materialized_aggregation_result,
     )
 except ImportError:
@@ -21,13 +21,13 @@ except ImportError:
     from common import (
         MaterializedAggregationResult,
         MaterializedDiagnosticSummary,
-        MaterializedEvaluation,
-        read_materialized_evaluations,
+        MaterializedResult,
+        read_materialized_results,
         write_materialized_aggregation_result,
     )
 
 
-def best_completion_diagnostic(record: MaterializedEvaluation):
+def best_result_diagnostic(record: MaterializedResult):
     return min(
         record.completion_diagnostics,
         key=lambda diagnostic: (
@@ -37,23 +37,23 @@ def best_completion_diagnostic(record: MaterializedEvaluation):
     )
 
 
-def aggregate_materialized_evaluations(
-    records: list[MaterializedEvaluation],
+def aggregate_materialized_results(
+    results: list[MaterializedResult],
     group_by: list[str],
 ) -> MaterializedAggregationResult:
     fields = group_by
-    groups: dict[tuple[str, ...], list[MaterializedEvaluation]] = {}
+    groups: dict[tuple[str, ...], list[MaterializedResult]] = {}
     skipped_without_metrics = 0
 
-    for record in records:
-        if not record.completion_diagnostics:
+    for result in results:
+        if not result.completion_diagnostics:
             skipped_without_metrics += 1
             continue
-        groups.setdefault(group_key(record, fields), []).append(record)
+        groups.setdefault(group_key(result, fields), []).append(result)
 
     summary = []
     for key, items in sorted(groups.items()):
-        best_diagnostics = [best_completion_diagnostic(record) for record in items]
+        best_results_diagnostic = [best_result_diagnostic(result) for result in items]
         summary.append(
             MaterializedDiagnosticSummary(
                 group=group_dict(fields, key),
@@ -63,21 +63,21 @@ def aggregate_materialized_evaluations(
                     for record in items
                 ),
                 baseline_diagnostic_count=mean(
-                    item.baseline.diagnostic_count for item in items
+                    result.baseline.diagnostic_count for result in items
                 ),
                 avg_completion_diagnostic_count=mean(
-                    mean(diagnostic.diagnostic_count for diagnostic in record.completion_diagnostics)
-                    for record in items
+                    mean(diagnostic.diagnostic_count for diagnostic in result.completion_diagnostics)
+                    for result in items
                 ),
                 avg_new_diagnostic_count=mean(
-                    mean(diagnostic.new_diagnostic_count for diagnostic in record.completion_diagnostics)
-                    for record in items
+                    mean(diagnostic.new_diagnostic_count for diagnostic in result.completion_diagnostics)
+                    for result in items
                 ),
                 best_completion_diagnostic_count=mean(
-                    diagnostic.diagnostic_count for diagnostic in best_diagnostics
+                    diagnostic.diagnostic_count for diagnostic in best_results_diagnostic
                 ),
                 best_new_diagnostic_count=mean(
-                    diagnostic.new_diagnostic_count for diagnostic in best_diagnostics
+                    diagnostic.new_diagnostic_count for diagnostic in best_results_diagnostic
                 ),
             )
         )
@@ -88,12 +88,12 @@ def aggregate_materialized_evaluations(
     )
 
 
-def aggregate_materialized_evaluation_files(
+def aggregate_materialized_result_files(
     input_paths: list[str | Path],
     group_by: list[str],
 ) -> MaterializedAggregationResult:
-    return aggregate_materialized_evaluations(
-        read_materialized_evaluations(input_paths),
+    return aggregate_materialized_results(
+        read_materialized_results(input_paths),
         group_by,
     )
 
@@ -109,7 +109,7 @@ def main() -> None:
     parser.add_argument("inputs", nargs="+")
     args = parser.parse_args()
 
-    result = aggregate_materialized_evaluation_files(
+    result = aggregate_materialized_result_files(
         args.inputs,
         parse_group_by(args.group_by),
     )

@@ -51,17 +51,17 @@ class MetricScores:
 
 
 @dataclass(frozen=True)
-class CompletionEvaluation:
+class MetricEvaluation:
     completion: str
     metrics: MetricScores
 
 
 @dataclass(frozen=True)
-class EvaluationResult:
+class DirectResult:
     case: TestCase
     server: str
     method: str
-    completion_metrics: list[CompletionEvaluation]
+    completion_metrics: list[MetricEvaluation]
 
 
 @dataclass(frozen=True)
@@ -76,19 +76,17 @@ class DiagnosticEvaluation:
 
 
 @dataclass(frozen=True)
-class MaterializedEvaluation:
+class MaterializedResult:
     materialized_project: str
     case: TestCase
     server: str
-    method: str
-    duration_ms: int
     checker: str
     baseline: DiagnosticEvaluation
     completion_diagnostics: list[DiagnosticEvaluation]
 
 
 @dataclass(frozen=True)
-class MetricSummary:
+class DirectMetricSummary:
     group: dict[str, str]
     count: int
     avg_metrics: MetricScores
@@ -96,8 +94,8 @@ class MetricSummary:
 
 
 @dataclass(frozen=True)
-class AggregationResult:
-    summary: list[MetricSummary]
+class DirectAggregationResult:
+    summary: list[DirectMetricSummary]
     skipped_without_metrics: int
 
 
@@ -197,37 +195,37 @@ def test_result_from_dict(data: JsonObject) -> TestResult:
     )
 
 
-def completion_evaluation_from_dict(data: JsonObject) -> CompletionEvaluation | None:
+def metric_evaluation_from_dict(data: JsonObject) -> MetricEvaluation | None:
     metrics = data.get("metrics")
     if not isinstance(metrics, dict):
         return None
-    return CompletionEvaluation(
+    return MetricEvaluation(
         completion=string_value(data.get("completion")),
         metrics=metric_scores_from_dict(json_object(metrics)),
     )
 
 
-def completion_evaluations_from_list(data: list[object]) -> list[CompletionEvaluation]:
+def metric_evaluations_from_list(data: list[object]) -> list[MetricEvaluation]:
     items = []
     for item in data:
-        completion_evaluation = completion_evaluation_from_dict(json_object(item))
+        completion_evaluation = metric_evaluation_from_dict(json_object(item))
         if completion_evaluation is not None:
             items.append(completion_evaluation)
     return items
 
 
-def evaluation_result_from_dict(data: JsonObject) -> EvaluationResult:
-    return EvaluationResult(
+def direct_result_from_dict(data: JsonObject) -> DirectResult:
+    return DirectResult(
         case=test_case_from_dict(json_object(data.get("case"))),
         server=string_value(data.get("server")),
         method=string_value(data.get("method")),
-        completion_metrics=completion_evaluations_from_list(
+        completion_metrics=metric_evaluations_from_list(
             json_list(data.get("completion_metrics"))
         ),
     )
 
 
-def evaluation_result_to_dict(result: EvaluationResult) -> JsonObject:
+def direct_result_to_dict(result: DirectResult) -> JsonObject:
     return asdict(result)
 
 
@@ -245,13 +243,11 @@ def diagnostic_evaluation_from_dict(data: JsonObject) -> DiagnosticEvaluation:
     )
 
 
-def materialized_evaluation_from_dict(data: JsonObject) -> MaterializedEvaluation:
-    return MaterializedEvaluation(
+def materialized_result_from_dict(data: JsonObject) -> MaterializedResult:
+    return MaterializedResult(
         materialized_project=string_value(data.get("materialized_project")),
         case=test_case_from_dict(json_object(data.get("case"))),
         server=string_value(data.get("server")),
-        method=string_value(data.get("method")),
-        duration_ms=int_value(data.get("duration_ms")),
         checker=string_value(data.get("checker")),
         baseline=diagnostic_evaluation_from_dict(json_object(data.get("baseline"))),
         completion_diagnostics=[
@@ -261,11 +257,11 @@ def materialized_evaluation_from_dict(data: JsonObject) -> MaterializedEvaluatio
     )
 
 
-def materialized_evaluation_to_dict(result: MaterializedEvaluation) -> JsonObject:
+def materialized_result_to_dict(result: MaterializedResult) -> JsonObject:
     return asdict(result)
 
 
-def aggregation_result_to_dict(result: AggregationResult) -> JsonObject:
+def direct_aggregation_result_to_dict(result: DirectAggregationResult) -> JsonObject:
     return asdict(result)
 
 
@@ -275,11 +271,11 @@ def materialized_aggregation_result_to_dict(
     return asdict(result)
 
 
-def metric_summary_from_dict(data: JsonObject) -> MetricSummary:
+def direct_metric_summary_from_dict(data: JsonObject) -> DirectMetricSummary:
     legacy_metrics = data.get("metrics")
     avg_metrics = data.get("avg_metrics")
     best_metrics = data.get("best_metrics")
-    return MetricSummary(
+    return DirectMetricSummary(
         group={
             string_value(field): string_value(value)
             for field, value in json_object(data.get("group")).items()
@@ -290,10 +286,10 @@ def metric_summary_from_dict(data: JsonObject) -> MetricSummary:
     )
 
 
-def aggregation_result_from_dict(data: JsonObject) -> AggregationResult:
-    return AggregationResult(
+def direct_aggregation_result_from_dict(data: JsonObject) -> DirectAggregationResult:
+    return DirectAggregationResult(
         summary=[
-            metric_summary_from_dict(json_object(summary))
+            direct_metric_summary_from_dict(json_object(summary))
             for summary in json_list(data.get("summary"))
         ],
         skipped_without_metrics=int_value(data.get("skipped_without_metrics"))
@@ -344,71 +340,74 @@ def read_test_result(path: str | Path) -> TestResult:
     return test_result_from_dict(json_object(data))
 
 
-def write_evaluation_result(result: EvaluationResult, path: str | Path) -> None:
+def write_direct_result(result: DirectResult, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(evaluation_result_to_dict(result), indent=2),
+        json.dumps(direct_result_to_dict(result), indent=2),
         encoding="utf-8",
     )
 
 
-def read_evaluation_result(path: str | Path) -> EvaluationResult:
+def read_direct_result(path: str | Path) -> DirectResult:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected one JSON object")
-    return evaluation_result_from_dict(json_object(data))
+    return direct_result_from_dict(json_object(data))
 
 
-def read_evaluation_results(paths: list[str | Path]) -> list[EvaluationResult]:
-    records: list[EvaluationResult] = []
+def read_direct_results(paths: list[str | Path]) -> list[DirectResult]:
+    records: list[DirectResult] = []
     for path in paths:
-        records.append(read_evaluation_result(Path(path)))
+        records.append(read_direct_result(Path(path)))
     return records
 
 
-def write_materialized_evaluation(
-    result: MaterializedEvaluation,
+def write_materialized_result(
+    result: MaterializedResult,
     path: str | Path,
 ) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(materialized_evaluation_to_dict(result), indent=2),
+        json.dumps(materialized_result_to_dict(result), indent=2),
         encoding="utf-8",
     )
 
 
-def read_materialized_evaluation(path: str | Path) -> MaterializedEvaluation:
+def read_materialized_result(path: str | Path) -> MaterializedResult:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected one JSON object")
-    return materialized_evaluation_from_dict(json_object(data))
+    return materialized_result_from_dict(json_object(data))
 
 
-def read_materialized_evaluations(
+def read_materialized_results(
     paths: list[str | Path],
-) -> list[MaterializedEvaluation]:
-    records: list[MaterializedEvaluation] = []
+) -> list[MaterializedResult]:
+    records: list[MaterializedResult] = []
     for path in paths:
-        records.append(read_materialized_evaluation(Path(path)))
+        records.append(read_materialized_result(Path(path)))
     return records
 
 
-def write_aggregation_result(result: AggregationResult, path: str | Path) -> None:
+def write_direct_aggregation_result(
+    result: DirectAggregationResult,
+    path: str | Path,
+) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(aggregation_result_to_dict(result), indent=2),
+        json.dumps(direct_aggregation_result_to_dict(result), indent=2),
         encoding="utf-8",
     )
 
 
-def read_aggregation_result(path: str | Path) -> AggregationResult:
+def read_direct_aggregation_result(path: str | Path) -> DirectAggregationResult:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected one JSON object")
-    return aggregation_result_from_dict(json_object(data))
+    return direct_aggregation_result_from_dict(json_object(data))
 
 
 def write_materialized_aggregation_result(
