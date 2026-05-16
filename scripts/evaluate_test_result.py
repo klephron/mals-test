@@ -1,196 +1,67 @@
-#!/usr/bin/env python3
 """Calculate per-completion metrics for results produced by mals-test."""
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
+from collections.abc import Iterator
 from collections import defaultdict
-from dataclasses import asdict, dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Callable
+
+from tree_sitter import Language, Node, Parser
+
+try:
+    from .common import (
+        CompletionEvaluation,
+        EvaluationResult,
+        MetricScores,
+        TestResult,
+        read_test_result,
+        write_evaluation_result,
+    )
+except ImportError:
+    from common import (
+        CompletionEvaluation,
+        EvaluationResult,
+        MetricScores,
+        TestResult,
+        read_test_result,
+        write_evaluation_result,
+    )
 
 
-IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+class IdentifierMetricsMode(str, Enum):
+    REGEX = "regex"
+    TREE_SITTER = "tree-sitter"
 
-KEYWORDS = {
-    "abstract",
-    "as",
-    "assert",
-    "async",
-    "await",
-    "bool",
-    "boolean",
-    "break",
-    "case",
-    "catch",
-    "char",
-    "class",
-    "const",
-    "continue",
-    "def",
-    "default",
-    "defer",
-    "do",
-    "double",
-    "else",
-    "enum",
-    "extends",
-    "false",
-    "final",
-    "finally",
-    "float",
-    "fn",
-    "for",
-    "func",
-    "go",
-    "if",
-    "implements",
-    "import",
-    "in",
-    "int",
-    "interface",
-    "let",
-    "long",
-    "namespace",
-    "new",
-    "nil",
-    "none",
-    "null",
-    "package",
-    "private",
-    "protected",
-    "public",
-    "return",
-    "static",
-    "struct",
-    "switch",
-    "this",
-    "throw",
-    "throws",
-    "true",
-    "try",
-    "type",
-    "using",
-    "var",
-    "void",
-    "while",
+    def __str__(self) -> str:
+        return self.value
+
+
+def identifier_metrics_mode(value: str | IdentifierMetricsMode) -> IdentifierMetricsMode:
+    return value if isinstance(value, IdentifierMetricsMode) else IdentifierMetricsMode(value)
+
+
+TREE_SITTER_PACKAGES = {
+    "python": "tree_sitter_python",
+    "java": "tree_sitter_java",
+    "go": "tree_sitter_go",
+    "js": "tree_sitter_javascript",
+    "javascript": "tree_sitter_javascript",
+    "typescript": "tree_sitter_typescript",
+    "cpp": "tree_sitter_cpp",
+    "rust": "tree_sitter_rust",
+    "csharp": "tree_sitter_c_sharp",
 }
 
-
-@dataclass(frozen=True)
-class CursorPosition:
-    line: int
-    character: int
-    offset: int = 0
-
-
-@dataclass(frozen=True)
-class TestCase:
-    id: str
-    dataset: str
-    language: str
-    root_dir: str
-    source_file: str
-    cursor: CursorPosition
-    prefix: str
-    ground_truth: str
-    suffix: str = ""
-    files: list[str] | None = None
-    metadata: dict[str, Any] | None = None
-
-
-@dataclass(frozen=True)
-class TestResult:
-    case: TestCase
-    server: str
-    method: str
-    completions: list[str]
-    error: str = ""
-    duration_ms: int = 0
-    raw_result: Any | None = None
-
-
-@dataclass(frozen=True)
-class MetricScores:
-    exact_match: float
-    edit_similarity: float
-    identifier_exact_match: float
-    identifier_f1: float
-
-
-@dataclass(frozen=True)
-class EvaluationResult:
-    case: TestCase
-    server: str
-    method: str
-    completions: list[str]
-    metrics: MetricScores | None
-    error: str = ""
-    duration_ms: int = 0
-
-
-def cursor_position_from_dict(data: dict[str, Any]) -> CursorPosition:
-    return CursorPosition(
-        line=int(data.get("line") or 0),
-        character=int(data.get("character") or 0),
-        offset=int(data.get("offset") or 0),
-    )
-
-
-def test_case_from_dict(data: dict[str, Any]) -> TestCase:
-    return TestCase(
-        id=str(data.get("id") or ""),
-        dataset=str(data.get("dataset") or ""),
-        language=str(data.get("language") or ""),
-        root_dir=str(data.get("root_dir") or ""),
-        source_file=str(data.get("source_file") or ""),
-        cursor=cursor_position_from_dict(data.get("cursor") or {}),
-        prefix=str(data.get("prefix") or ""),
-        suffix=str(data.get("suffix") or ""),
-        ground_truth=str(data.get("ground_truth") or ""),
-        files=[str(item) for item in data.get("files") or []],
-        metadata=data.get("metadata") if isinstance(data.get("metadata"), dict) else None,
-    )
-
-
-def test_result_from_dict(data: dict[str, Any]) -> TestResult:
-    completions = data.get("completions") or []
-    return TestResult(
-        case=test_case_from_dict(data.get("case") or {}),
-        server=str(data.get("server") or ""),
-        method=str(data.get("method") or ""),
-        completions=[str(item) for item in completions],
-        error=str(data.get("error") or ""),
-        duration_ms=int(data.get("duration_ms") or 0),
-        raw_result=data.get("raw_result"),
-    )
-
-
-def evaluation_result_from_dict(data: dict[str, Any]) -> EvaluationResult:
-    metrics = data.get("metrics")
-    return EvaluationResult(
-        case=test_case_from_dict(data.get("case") or {}),
-        server=str(data.get("server") or ""),
-        method=str(data.get("method") or ""),
-        completions=[str(item) for item in data.get("completions") or []],
-        metrics=MetricScores(**metrics) if isinstance(metrics, dict) else None,
-        error=str(data.get("error") or ""),
-        duration_ms=int(data.get("duration_ms") or 0),
-    )
-
-
-def evaluation_result_to_dict(result: EvaluationResult) -> dict[str, Any]:
-    return asdict(result)
-
-
-def identifiers(text: str) -> list[str]:
-    return [
-        item
-        for item in IDENTIFIER_RE.findall(text)
-        if item.lower() not in KEYWORDS
-    ]
+TREE_SITTER_LANGUAGE_FACTORIES = {
+    "typescript": ("language_typescript", "language"),
+}
 
 
 def levenshtein_distance(a: str, b: str) -> int:
@@ -240,11 +111,12 @@ def identifier_f1(prediction_ids: list[str], reference_ids: list[str]) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-def calculate_metrics(completion: str, ground_truth: str) -> MetricScores:
-    prediction = completion.strip()
-    reference = ground_truth.strip()
-    prediction_ids = identifiers(prediction)
-    reference_ids = identifiers(reference)
+def metric_scores(
+    prediction: str,
+    reference: str,
+    prediction_ids: list[str],
+    reference_ids: list[str],
+) -> MetricScores:
     return MetricScores(
         exact_match=float(prediction == reference),
         edit_similarity=edit_similarity(prediction, reference),
@@ -253,60 +125,362 @@ def calculate_metrics(completion: str, ground_truth: str) -> MetricScores:
     )
 
 
+def regex_identifiers(text: str) -> list[str]:
+    KEYWORDS = {
+        "abstract",
+        "as",
+        "assert",
+        "async",
+        "await",
+        "bool",
+        "boolean",
+        "break",
+        "case",
+        "catch",
+        "char",
+        "class",
+        "const",
+        "continue",
+        "def",
+        "default",
+        "defer",
+        "do",
+        "double",
+        "else",
+        "enum",
+        "extends",
+        "false",
+        "final",
+        "finally",
+        "float",
+        "fn",
+        "for",
+        "func",
+        "go",
+        "if",
+        "implements",
+        "import",
+        "in",
+        "int",
+        "interface",
+        "let",
+        "long",
+        "namespace",
+        "new",
+        "nil",
+        "none",
+        "null",
+        "package",
+        "private",
+        "protected",
+        "public",
+        "return",
+        "static",
+        "struct",
+        "switch",
+        "this",
+        "throw",
+        "throws",
+        "true",
+        "try",
+        "type",
+        "using",
+        "var",
+        "void",
+        "while",
+    }
+
+    return [item for item in re.compile(r"[A-Za-z_][A-Za-z0-9_]*").findall(text) if item not in KEYWORDS]
+
+
+def calculate_metrics_regex(completion: str, ground_truth: str) -> MetricScores:
+    prediction = completion.strip()
+    reference = ground_truth.strip()
+    prediction_ids = regex_identifiers(prediction)
+    reference_ids = regex_identifiers(reference)
+    return metric_scores(prediction, reference, prediction_ids, reference_ids)
+
+
+def tree_sitter_import_language(language: str) -> Language:
+    package = TREE_SITTER_PACKAGES.get(language)
+    if not package:
+        raise ValueError(f"tree-sitter metrics are not configured for language: {language}")
+
+    try:
+        grammar: ModuleType = importlib.import_module(package)
+    except ImportError as exc:
+        raise RuntimeError(
+            f"tree-sitter metrics for {language} require Python packages: "
+            f"tree-sitter and {package.replace('_', '-')}"
+        ) from exc
+
+    language_factory: Callable[[], object] | None = None
+    for factory_name in TREE_SITTER_LANGUAGE_FACTORIES.get(language, ("language",)):
+        factory = getattr(grammar, factory_name, None)
+        if callable(factory):
+            language_factory = factory
+            break
+    if language_factory is None:
+        raise RuntimeError(
+            f"tree-sitter metrics for {language} could not find a language factory "
+            f"in Python package: {package.replace('_', '-')}"
+        )
+
+    raw_language = language_factory()
+    return (
+        raw_language
+        if isinstance(raw_language, Language)
+        else Language(raw_language)
+    )
+
+
+def tree_sitter_make_parser(language: str) -> Parser:
+    parsed_language = tree_sitter_import_language(language)
+    parser = Parser()
+    parser.language = parsed_language
+    return parser
+
+
+def node_text(source: bytes, node: Node) -> str:
+    return source[node.start_byte : node.end_byte].decode("utf-8", errors="ignore")
+
+
+def is_identifier_node(node: Node) -> bool:
+    if node.named_children:
+        return False
+
+    node_type = node.type
+    return (
+        node_type in {
+            "identifier",
+            "property_identifier",
+            "field_identifier",
+            "type_identifier",
+            "scoped_type_identifier",
+            "primitive_type",
+            "predefined_type",
+        }
+        or node_type.endswith("_identifier")
+    )
+
+
+def same_node(left: Node | None, right: Node | None) -> bool:
+    if left is None or right is None:
+        return False
+    return (
+        left.type == right.type
+        and left.start_byte == right.start_byte
+        and left.end_byte == right.end_byte
+    )
+
+
+def ancestors(node: Node) -> list[Node]:
+    values: list[Node] = []
+    parent = node.parent
+    while parent is not None:
+        values.append(parent)
+        parent = parent.parent
+    return values
+
+
+def node_has_type_context(node: Node) -> bool:
+    if node.type in {
+        "type_identifier",
+        "scoped_type_identifier",
+        "primitive_type",
+        "predefined_type",
+    }:
+        return True
+    return any(parent.type in {
+        "type",
+        "type_annotation",
+        "type_identifier",
+        "type_arguments",
+        "type_parameters",
+        "type_parameter",
+        "generic_type",
+        "union_type",
+        "optional_type",
+        "array_type",
+        "pointer_type",
+        "slice_type",
+        "qualified_type",
+        "scoped_type_identifier",
+        "primitive_type",
+        "predefined_type",
+        "trait_bound",
+        "bounded_type",
+        "extends_clause",
+        "implements_clause",
+        "superclass",
+    } for parent in ancestors(node))
+
+
+def node_has_import_context(node: Node) -> bool:
+    return any(parent.type in {
+        "import_statement",
+        "import_declaration",
+        "import_spec",
+        "package_clause",
+        "use_declaration",
+        "using_directive",
+        "namespace_import",
+    } for parent in ancestors(node))
+
+
+def is_declaration_name(node: Node, declaration_types: set[str]) -> bool:
+    for parent in ancestors(node):
+        if parent.type in declaration_types and same_node(
+            parent.child_by_field_name("name"), node
+        ):
+            return True
+    return False
+
+
+def tree_sitter_identifier_role(node: Node) -> str:
+    if (is_declaration_name(node, {
+        "class_definition",
+        "class_declaration",
+        "interface_declaration",
+        "struct_declaration",
+        "struct_item",
+        "enum_declaration",
+        "enum_item",
+        "type_declaration",
+        "type_alias_declaration",
+        "type_spec",
+        "class_specifier",
+        "struct_specifier",
+        "enum_specifier",
+        "record_declaration",
+        "trait_item",
+    }) or node_has_type_context(node)):
+        return "type"
+    if node_has_import_context(node):
+        return "import"
+    if is_declaration_name(node, {
+        "function_definition",
+        "function_declaration",
+        "method_declaration",
+        "method_definition",
+        "function_item",
+        "function_signature_item",
+        "lexical_declaration",
+        "variable_declaration",
+        "local_variable_declaration",
+        "field_declaration",
+        "formal_parameter",
+        "parameter",
+        "parameter_declaration",
+        "assignment",
+        "short_var_declaration",
+        "const_declaration",
+        "var_declaration",
+    }):
+        return "value"
+    return "value"
+
+
+def walk_tree(node: Node) -> Iterator[Node]:
+    yield node
+    for child in node.children:
+        yield from walk_tree(child)
+
+
+def tree_sitter_identifiers(
+    parser: Parser,
+    prefix: str,
+    completion: str,
+    suffix: str,
+) -> list[str]:
+    source = f"{prefix}{completion}{suffix}".encode("utf-8")
+    start_byte = len(prefix.encode("utf-8"))
+    end_byte = start_byte + len(completion.encode("utf-8"))
+    tree = parser.parse(source)
+
+    result = []
+    for node in walk_tree(tree.root_node):
+        is_completion = node.end_byte > start_byte and node.start_byte < end_byte
+        is_identifier = is_identifier_node(node)
+        if not is_completion or not is_identifier:
+            continue
+        text = node_text(source, node)
+        result.append(f"{node.type}:{text}")
+
+    return result
+
+
+def calculate_metrics_tree_sitter(
+    completion: str,
+    ground_truth: str,
+    *,
+    language: str,
+    prefix: str = "",
+    suffix: str = "",
+) -> MetricScores:
+    parser = tree_sitter_make_parser(language)
+    prediction = completion.strip()
+    reference = ground_truth.strip()
+    prediction_ids = tree_sitter_identifiers(parser, prefix, prediction, suffix)
+    reference_ids = tree_sitter_identifiers(parser, prefix, reference, suffix)
+    return metric_scores(prediction, reference, prediction_ids, reference_ids)
+
+
+def calculate_metrics(
+    record: TestResult,
+    completion: str,
+    identifier_metrics: IdentifierMetricsMode,
+) -> MetricScores:
+    identifier_metrics = identifier_metrics_mode(identifier_metrics)
+    if identifier_metrics == IdentifierMetricsMode.REGEX:
+        return calculate_metrics_regex(completion, record.case.ground_truth)
+    if identifier_metrics == IdentifierMetricsMode.TREE_SITTER:
+        return calculate_metrics_tree_sitter(
+            completion,
+            record.case.ground_truth,
+            language=record.case.language,
+            prefix=record.case.prefix,
+            suffix=record.case.suffix,
+        )
+    raise ValueError(f"unknown identifier metric mode: {identifier_metrics}")
+
+
 def evaluate_test_result(
     record: TestResult,
-    include_errors: bool = False,
+    include_errors: bool,
+    identifier_metrics: IdentifierMetricsMode,
 ) -> EvaluationResult:
-    completion = record.completions[0] if record.completions else ""
-    metrics = None
+    completion_metrics = []
     if record.case.ground_truth and (include_errors or not record.error):
-        metrics = calculate_metrics(completion, record.case.ground_truth)
+        completion_metrics = [
+            CompletionEvaluation(
+                completion=completion,
+                metrics=calculate_metrics(
+                    record,
+                    completion,
+                    identifier_metrics,
+                ),
+            )
+            for completion in record.completions
+        ]
     return EvaluationResult(
         case=record.case,
         server=record.server,
         method=record.method,
         completions=record.completions,
-        metrics=metrics,
+        metrics=None,
+        completion_metrics=completion_metrics,
         error=record.error,
         duration_ms=record.duration_ms,
     )
 
 
-def read_test_result(path: str | Path) -> TestResult:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path}: expected one JSON object")
-    return test_result_from_dict(data)
-
-
-def write_evaluation_result(result: EvaluationResult, path: str | Path) -> None:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(evaluation_result_to_dict(result), indent=2),
-        encoding="utf-8",
-    )
-
-
-def read_evaluation_result(path: str | Path) -> EvaluationResult:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path}: expected one JSON object")
-    return evaluation_result_from_dict(data)
-
-
-def read_evaluation_results(paths: list[str | Path]) -> list[EvaluationResult]:
-    records: list[EvaluationResult] = []
-    for path in paths:
-        records.append(read_evaluation_result(Path(path)))
-    return records
-
-
 def evaluate_test_result_file(
     input_path: str | Path,
     include_errors: bool = False,
+    identifier_metrics: IdentifierMetricsMode = IdentifierMetricsMode.TREE_SITTER,
 ) -> EvaluationResult:
-    return evaluate_test_result(read_test_result(input_path), include_errors)
+    return evaluate_test_result(read_test_result(input_path), include_errors, identifier_metrics)
 
 
 def main() -> None:
@@ -314,14 +488,28 @@ def main() -> None:
     parser.add_argument("--input", "-i", default="result/completions.json")
     parser.add_argument("--output", "-o", default="result/evaluated_completions.json")
     parser.add_argument("--include-errors", action="store_true")
+    parser.add_argument(
+        "--identifier-metrics",
+        choices=[mode.value for mode in IdentifierMetricsMode],
+        default=IdentifierMetricsMode.TREE_SITTER.value,
+        help=(
+            "Regex identifier metric implementation. "
+            "Tree-sitter language-aware type/value/import identifier implementation."
+        ),
+    )
     args = parser.parse_args()
 
-    result = evaluate_test_result_file(args.input, args.include_errors)
+    result = evaluate_test_result_file(
+        args.input,
+        args.include_errors,
+        IdentifierMetricsMode(args.identifier_metrics),
+    )
     write_evaluation_result(result, args.output)
     print(
         json.dumps(
             {
-                "metrics_calculated": result.metrics is not None,
+                "metrics_calculated": bool(result.completion_metrics),
+                "completion_metrics_calculated": len(result.completion_metrics or []),
                 "output": args.output,
             },
             indent=2,

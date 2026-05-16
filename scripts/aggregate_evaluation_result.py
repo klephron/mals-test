@@ -1,26 +1,29 @@
-#!/usr/bin/env python3
 """Aggregate metrics calculated by evaluate_test_result.py."""
 
 from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean
-from typing import Any
 
 try:
-    from .evaluate_test_result import (
+    from .common import (
+        AggregationResult,
         EvaluationResult,
+        MetricSummary,
         MetricScores,
         read_evaluation_results,
+        write_aggregation_result,
     )
 except ImportError:
-    from evaluate_test_result import (
+    from common import (
+        AggregationResult,
         EvaluationResult,
+        MetricSummary,
         MetricScores,
         read_evaluation_results,
+        write_aggregation_result,
     )
 
 
@@ -30,25 +33,6 @@ METRIC_FIELDS = [
     "identifier_exact_match",
     "identifier_f1",
 ]
-
-
-@dataclass(frozen=True)
-class MetricSummary:
-    group: dict[str, str]
-    count: int
-    error_count: int
-    metrics: MetricScores
-
-
-@dataclass(frozen=True)
-class AggregationResult:
-    summary: list[MetricSummary]
-    record_count: int
-    skipped_without_metrics: int = 0
-
-
-def aggregation_result_to_dict(result: AggregationResult) -> dict[str, Any]:
-    return asdict(result)
 
 
 def group_value(record: EvaluationResult, field: str) -> str:
@@ -69,35 +53,49 @@ def group_key(record: EvaluationResult, group_by: list[str]) -> tuple[str, ...]:
     return tuple(group_value(record, field) for field in group_by)
 
 
+def combined_metric_score(metrics: MetricScores) -> float:
+    return sum(getattr(metrics, field) for field in METRIC_FIELDS)
+
+
+def best_record_metrics(record: EvaluationResult) -> MetricScores | None:
+    if record.completion_metrics:
+        return max(
+            record.completion_metrics,
+            key=lambda item: combined_metric_score(item.metrics),
+        ).metrics
+    return record.metrics
+
+
 def aggregate_evaluation_results(
     records: list[EvaluationResult],
     group_by: list[str],
 ) -> AggregationResult:
     fields = group_by
-    groups: dict[tuple[str, ...], list[EvaluationResult]] = {}
+    groups: dict[tuple[str, ...], list[tuple[EvaluationResult, MetricScores]]] = {}
     skipped_without_metrics = 0
 
     for record in records:
-        if record.metrics is None:
+        metrics = best_record_metrics(record)
+        if metrics is None:
             skipped_without_metrics += 1
             continue
-        groups.setdefault(group_key(record, fields), []).append(record)
+        groups.setdefault(group_key(record, fields), []).append((record, metrics))
 
     summary = []
     for key, items in sorted(groups.items()):
         metrics = MetricScores(
-            exact_match=mean(item.metrics.exact_match for item in items if item.metrics),
-            edit_similarity=mean(item.metrics.edit_similarity for item in items if item.metrics),
+            exact_match=mean(metrics.exact_match for _, metrics in items),
+            edit_similarity=mean(metrics.edit_similarity for _, metrics in items),
             identifier_exact_match=mean(
-                item.metrics.identifier_exact_match for item in items if item.metrics
+                metrics.identifier_exact_match for _, metrics in items
             ),
-            identifier_f1=mean(item.metrics.identifier_f1 for item in items if item.metrics),
+            identifier_f1=mean(metrics.identifier_f1 for _, metrics in items),
         )
         summary.append(
             MetricSummary(
                 group={field: value for field, value in zip(fields, key)},
                 count=len(items),
-                error_count=sum(1 for item in items if item.error),
+                error_count=sum(1 for record, _ in items if record.error),
                 metrics=metrics,
             )
         )
@@ -106,32 +104,6 @@ def aggregate_evaluation_results(
         summary=summary,
         record_count=len(records),
         skipped_without_metrics=skipped_without_metrics,
-    )
-
-
-def write_aggregation_result(result: AggregationResult, path: str | Path) -> None:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(aggregation_result_to_dict(result), indent=2),
-        encoding="utf-8",
-    )
-
-
-def read_aggregation_result(path: str | Path) -> AggregationResult:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    return AggregationResult(
-        summary=[
-            MetricSummary(
-                group=item.get("group") or {},
-                count=int(item.get("count") or 0),
-                error_count=int(item.get("error_count") or 0),
-                metrics=MetricScores(**(item.get("metrics") or {})),
-            )
-            for item in data.get("summary", [])
-        ],
-        record_count=int(data.get("record_count") or 0),
-        skipped_without_metrics=int(data.get("skipped_without_metrics") or 0),
     )
 
 
