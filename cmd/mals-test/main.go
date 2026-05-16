@@ -62,7 +62,7 @@ func must(err error) {
 
 func mustRaw(v any) json.RawMessage {
 	if v == nil {
-		return json.RawMessage("null")
+		return nil
 	}
 	b, err := json.Marshal(v)
 	if err != nil {

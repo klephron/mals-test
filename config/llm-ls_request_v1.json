@@ -1,0 +1,21 @@
+{
+  "backend": "openai",
+  "model": "model1",
+  "url": "http://localhost:9652",
+  "fim": {
+    "enabled": false,
+    "prefix": "",
+    "middle": "",
+    "suffix": ""
+  },
+  "tokensToClear": ["<|endoftext|>"],
+  "requestBody": {
+    "temperature": 0.2,
+    "top_p": 0.95,
+    "max_new_tokens": 256,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0
+  },
+  "contextWindow": 12000,
+  "tlsSkipVerifyInsecure": true
+}

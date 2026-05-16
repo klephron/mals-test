@@ -40,7 +40,7 @@ generated completions, request metadata, duration, and any generation error.
 go run ./cmd/mals-test \
   --server lsp-ai \
   --method textDocument/completion \
-  --init-options ./config/lsp-ai_v1.json \
+  --init-options ./config/lsp-ai_init_v1.json \
   --timeout 5m \
   --out result/mals-test/lsp-ai/humanevalpack/cpp-CPP_0.json \
   data/humanevalpack.projects/cpp-CPP_0
@@ -52,8 +52,10 @@ For `llm-ls`:
 go run ./cmd/mals-test \
   --server llm-ls \
   --method llm-ls/getCompletions \
-  --out result/mals-test/llm-ls/humanevalpack/python-Python_0.json \
-  data/humanevalpack.projects/python-Python_0
+  --request-options ./config/llm-ls_request_v1.json \
+  --timeout 5m \
+  --out result/mals-test/llm-ls/humanevalpack/cpp-CPP_0.json \
+  data/humanevalpack.projects/cpp-CPP_0
 ```
 
 If `--out` is omitted, the runner writes the completion result to stdout. Other
