@@ -108,20 +108,25 @@ def checker_command(
         ]
 
     if language == "csharp":
-        dotnet = executable("dotnet")
-        if dotnet and (
-            list(project_dir.glob("*.sln")) or list(project_dir.rglob("*.csproj"))
-        ):
+        if list(project_dir.glob("*.sln")) or list(project_dir.rglob("*.csproj")):
+            dotnet = executable("dotnet")
+            if not dotnet:
+                raise RuntimeError("missing checker for csharp project: install dotnet")
             return [dotnet, "build", "--no-restore"]
+
+        cs_files = relative_files(project_dir, files_with_suffix(project_dir, (".cs",)))
+        if not cs_files:
+            raise RuntimeError(f"missing csharp source files in {project_dir}")
+
         csc = executable("csc")
-        if csc:
-            return [
-                csc,
-                "-nologo",
-                "-t:library",
-                *relative_files(project_dir, files_with_suffix(project_dir, (".cs",))),
-            ]
-        raise RuntimeError("missing checker for csharp: install dotnet or csc")
+        if not csc:
+            raise RuntimeError("missing checker for csharp source files: install csc")
+        return [
+            csc,
+            "-nologo",
+            "-t:library",
+            *cs_files,
+        ]
 
     if language == "go":
         go = executable("go")

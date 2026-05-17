@@ -161,7 +161,7 @@ dataset/language pairs.
 
 ```sh
 python scripts/execute.py \
-  --output result \
+  --output result/v1 \
   --prefix lsp-ai \
   --server lsp-ai \
   --method textDocument/completion \
