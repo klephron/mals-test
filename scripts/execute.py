@@ -175,8 +175,10 @@ def select_projects(dataset_dirs: list[Path], limit: int | None) -> list[Project
     return selected
 
 
-def run_command(command: list[str]) -> None:
+def run_command(command: list[str], done_message: str = "") -> None:
     subprocess.run(command, stdout=sys.stdout, stderr=sys.stderr, check=True)
+    if done_message:
+        print(done_message, flush=True)
 
 
 def run_parallel(title: str, jobs: int, commands: list[list[str]]) -> None:
@@ -187,6 +189,25 @@ def run_parallel(title: str, jobs: int, commands: list[list[str]]) -> None:
 
     with ThreadPoolExecutor(max_workers=jobs) as executor:
         futures = [executor.submit(run_command, command) for command in commands]
+        for future in as_completed(futures):
+            future.result()
+
+
+def run_parallel_with_done_messages(
+    title: str,
+    jobs: int,
+    commands: list[tuple[list[str], str]],
+) -> None:
+    print(f"\n{title}")
+    if not commands:
+        print("nothing to run")
+        return
+
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        futures = [
+            executor.submit(run_command, command, done_message)
+            for command, done_message in commands
+        ]
         for future in as_completed(futures):
             future.result()
 
@@ -385,10 +406,16 @@ def main() -> None:
     if not cases:
         raise SystemExit("no projects found")
 
-    run_parallel(
+    run_parallel_with_done_messages(
         "1. execute mals-test",
         args.jobs,
-        [mals_test_command(config, case) for case in cases],
+        [
+            (
+                mals_test_command(config, case),
+                f"mals-test {case.dataset}/{case.name} is done",
+            )
+            for case in cases
+        ],
     )
     run_parallel(
         "2. evaluate_direct",
