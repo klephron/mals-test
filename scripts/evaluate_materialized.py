@@ -7,7 +7,7 @@ import json
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 try:
@@ -17,7 +17,6 @@ try:
         TestResult,
         read_test_result,
         write_materialized_result,
-        materialized_result_to_dict,
     )
 except ImportError:
     from common import (
@@ -26,7 +25,6 @@ except ImportError:
         TestResult,
         read_test_result,
         write_materialized_result,
-        materialized_result_to_dict,
     )
 
 
@@ -251,6 +249,26 @@ def evaluate_checker_result(
     )
 
 
+def add_hallucination_rates(
+    diagnostics: list[DiagnosticEvaluation],
+) -> list[DiagnosticEvaluation]:
+    max_new_diagnostic_count = max(
+        (diagnostic.new_diagnostic_count for diagnostic in diagnostics),
+        default=0,
+    )
+    if max_new_diagnostic_count == 0:
+        return diagnostics
+    return [
+        replace(
+            diagnostic,
+            hallucination_rate=(
+                diagnostic.new_diagnostic_count / max_new_diagnostic_count
+            ),
+        )
+        for diagnostic in diagnostics
+    ]
+
+
 def evaluate_materialized_project(
     materialized_project: Path,
     test_result: TestResult,
@@ -285,6 +303,7 @@ def evaluate_materialized_project(
                 baseline_checker_result,
             )
         )
+    diagnostic_evaluations = add_hallucination_rates(diagnostic_evaluations)
     checker = " ".join(baseline.command[:1])
     return MaterializedResult(
         materialized_project=str(materialized_project),

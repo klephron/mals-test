@@ -148,5 +148,7 @@ The summary includes:
 - `baseline_diagnostic_count`
 - `avg_completion_diagnostic_count`
 - `avg_new_diagnostic_count`
+- `avg_hallucination_rate`
 - `best_completion_diagnostic_count`
 - `best_new_diagnostic_count`
+- `best_hallucination_rate`

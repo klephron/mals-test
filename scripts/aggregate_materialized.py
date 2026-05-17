@@ -73,11 +73,22 @@ def aggregate_materialized_results(
                     mean(diagnostic.new_diagnostic_count for diagnostic in result.completion_diagnostics)
                     for result in items
                 ),
+                avg_hallucination_rate=mean(
+                    mean(
+                        diagnostic.hallucination_rate
+                        for diagnostic in result.completion_diagnostics
+                    )
+                    for result in items
+                ),
                 best_completion_diagnostic_count=mean(
                     diagnostic.diagnostic_count for diagnostic in best_results_diagnostic
                 ),
                 best_new_diagnostic_count=mean(
                     diagnostic.new_diagnostic_count for diagnostic in best_results_diagnostic
+                ),
+                best_hallucination_rate=mean(
+                    diagnostic.hallucination_rate
+                    for diagnostic in best_results_diagnostic
                 ),
             )
         )

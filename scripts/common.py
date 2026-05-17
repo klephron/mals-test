@@ -73,6 +73,7 @@ class DiagnosticEvaluation:
     diagnostic_count: int
     new_diagnostics: list[str]
     new_diagnostic_count: int
+    hallucination_rate: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -107,8 +108,10 @@ class MaterializedDiagnosticSummary:
     baseline_diagnostic_count: float
     avg_completion_diagnostic_count: float
     avg_new_diagnostic_count: float
+    avg_hallucination_rate: float
     best_completion_diagnostic_count: float
     best_new_diagnostic_count: float
+    best_hallucination_rate: float
 
 
 @dataclass(frozen=True)
@@ -240,6 +243,7 @@ def diagnostic_evaluation_from_dict(data: JsonObject) -> DiagnosticEvaluation:
             string_value(item) for item in json_list(data.get("new_diagnostics"))
         ],
         new_diagnostic_count=int_value(data.get("new_diagnostic_count")),
+        hallucination_rate=float_value(data.get("hallucination_rate")),
     )
 
 
@@ -314,10 +318,12 @@ def materialized_diagnostic_summary_from_dict(
             data.get("avg_completion_diagnostic_count")
         ),
         avg_new_diagnostic_count=float_value(data.get("avg_new_diagnostic_count")),
+        avg_hallucination_rate=float_value(data.get("avg_hallucination_rate")),
         best_completion_diagnostic_count=float_value(
             data.get("best_completion_diagnostic_count")
         ),
         best_new_diagnostic_count=float_value(data.get("best_new_diagnostic_count")),
+        best_hallucination_rate=float_value(data.get("best_hallucination_rate")),
     )
 
 
