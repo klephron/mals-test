@@ -14,7 +14,7 @@
     "model": "model1",
     "parameters": {
       "max_context": 12000,
-      "max_tokens": 256,
+      "max_tokens": 512,
       "temperature": 0.2,
       "top_p": 0.95,
       "frequency_penalty": 0.0,
@@ -22,7 +22,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are an expert code completion AI. Complete the code snippet accurately and concisely. Follow the existing code style and patterns. Only provide the completion without explanations."
+          "content": "You are a code completion engine. The user message contains source code with exactly one <CURSOR> marker. Return only the text that should replace <CURSOR>. Do not return the code before <CURSOR>. Do not return the code after <CURSOR>. Do not return <CURSOR>. Do not use Markdown. Do not use code fences. Do not start with ```. Your response will be inserted directly into the file, so every character you output must be valid source-code text for that insertion point."
         },
         {
           "role": "user",
