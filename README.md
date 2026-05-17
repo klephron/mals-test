@@ -152,3 +152,38 @@ The summary includes:
 - `best_completion_diagnostic_count`
 - `best_new_diagnostic_count`
 - `best_hallucination_rate`
+
+## Automated Full Pipeline
+
+Use `scripts/execute.py` to run completion tests, direct metrics,
+materialization, diagnostic evaluation, and aggregation for all selected
+dataset/language pairs.
+
+```sh
+python scripts/execute.py \
+  --output result \
+  --prefix lsp-ai \
+  --server lsp-ai \
+  --method textDocument/completion \
+  --init-options ./config/lsp-ai_init_v1.json \
+  --jobs 8 \
+  --limit 100
+```
+
+If `--limit` is omitted, all projects in each selected dataset/language pair are
+executed. `--datasets` accepts a comma-separated list such as
+`humanevalpack,repobench-c`; by default the script uses the configured dataset
+list and prints the dataset directories found with `find`.
+
+For `llm-ls`:
+
+```sh
+python scripts/execute.py \
+  --output result \
+  --prefix llm-ls \
+  --server llm-ls \
+  --method llm-ls/getCompletions \
+  --request-options ./config/llm-ls_request_v1.json \
+  --jobs 4 \
+  --datasets humanevalpack,repobench-c
+```
