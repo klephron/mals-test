@@ -1,0 +1,74 @@
+{
+  "memory": {
+    "file_store": {}
+  },
+  "models": {
+    "model1": {
+      "type": "open_ai",
+      "chat_endpoint": "http://localhost:9652/v1/chat/completions",
+      "model": "local-model",
+      "auth_token": ""
+    }
+  },
+  "completion": {
+    "model": "model1",
+    "parameters": {
+      "max_context": 12000,
+      "max_tokens": 512,
+      "temperature": 0.2,
+      "top_p": 0.95,
+      "frequency_penalty": 0.0,
+      "presence_penalty": 0.0,
+      "messages": [
+        {
+          "role": "system",
+          "content": "Instructions:\n- You are an AI programming assistant.\n- Given a piece of code with the cursor location marked by \"<CURSOR>\", replace \"<CURSOR>\" with the correct code or comment.\n- First, think step-by-step.\n- Describe your plan for what to build in pseudocode, written out in great detail.\n- Then output the code replacing the \"<CURSOR>\"\n- Ensure that your completion fits within the language context of the provided code snippet (e.g., Python, JavaScript, Rust, CSharp, C++, TypeScript, Java, Go).\n\nRules:\n- Only respond with code or comments.\n- Only replace \"<CURSOR>\"; do not include any previously written code.\n- Never include \"<CURSOR>\" in your response\n- If the cursor is within a comment, complete the comment meaningfully.\n- Handle ambiguous cases by providing the most contextually appropriate completion.\n- Be consistent with your responses."
+        },
+        {
+          "role": "user",
+          "content": "def greet(name):\n    print(f\"Hello, {<CURSOR>}\")"
+        },
+        {
+          "role": "assistant",
+          "content": "name"
+        },
+        {
+          "role": "user",
+          "content": "function sum(a, b) {\n    return a + <CURSOR>;\n}"
+        },
+        {
+          "role": "assistant",
+          "content": "b"
+        },
+        {
+          "role": "user",
+          "content": "fn multiply(a: i32, b: i32) -> i32 {\n    a * <CURSOR>\n}"
+        },
+        {
+          "role": "assistant",
+          "content": "b"
+        },
+        {
+          "role": "user",
+          "content": "# <CURSOR>\ndef add(a, b):\n    return a + b"
+        },
+        {
+          "role": "assistant",
+          "content": "Adds two numbers"
+        },
+        {
+          "role": "user",
+          "content": "# This function checks if a number is even\n<CURSOR>"
+        },
+        {
+          "role": "assistant",
+          "content": "def is_even(n):\n    return n % 2 == 0"
+        },
+        {
+          "role": "user",
+          "content": "{CODE}"
+        }
+      ]
+    }
+  }
+}
